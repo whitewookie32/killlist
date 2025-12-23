@@ -151,30 +151,4 @@ export async function deleteContract(id: string): Promise<void> {
   await db.contracts.delete(id);
 }
 
-// ===== Hooks-friendly subscription =====
-export function subscribeToContracts(
-  callback: (contracts: Contract[]) => void
-): () => void {
-  const subscription = db.contracts.hook("creating", () => {
-    getActiveContracts().then(callback);
-  });
-
-  // Initial load
-  getActiveContracts().then(callback);
-
-  // Also subscribe to updates
-  const updateSub = db.contracts.hook("updating", () => {
-    getActiveContracts().then(callback);
-  });
-
-  const deleteSub = db.contracts.hook("deleting", () => {
-    getActiveContracts().then(callback);
-  });
-
-  return () => {
-    db.contracts.hook("creating").unsubscribe(subscription);
-    db.contracts.hook("updating").unsubscribe(updateSub);
-    db.contracts.hook("deleting").unsubscribe(deleteSub);
-  };
-}
 
