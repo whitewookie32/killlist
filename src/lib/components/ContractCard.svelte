@@ -1,28 +1,19 @@
 <script lang="ts">
   import type { Contract } from '$lib/db';
-  import {
-    formatDeadline,
-    formatCountdown,
-    getExcommunicadoRemainingMs,
-    isOverdue,
-    hasFailed
-  } from '$lib/stores/contracts';
   import { playExecute, playCoin } from '$lib/audio';
 
   // Props
   interface Props {
     contract: Contract;
     onComplete: (id: string) => void;
-    excommunicadoDurationMs?: number;
   }
 
-  let { contract, onComplete, excommunicadoDurationMs = 45 * 60 * 1000 }: Props = $props();
+  let { contract, onComplete }: Props = $props();
 
   // State
   let offsetX = $state(0);
   let isCompleting = $state(false);
   let showCoin = $state(false);
-  let countdown = $state<number | null>(null);
   let isDragging = $state(false);
 
   // Touch tracking refs
@@ -32,26 +23,9 @@
   const SWIPE_THRESHOLD = 120; // px to trigger completion
   const VELOCITY_THRESHOLD = 0.5; // px/ms
 
-  // Derived state
-  const contractIsOverdue = $derived(isOverdue(contract));
-  const contractHasFailed = $derived(hasFailed(contract, excommunicadoDurationMs));
-
-  // Countdown timer
-  $effect(() => {
-    if (!contractIsOverdue || contractHasFailed) {
-      countdown = null;
-      return;
-    }
-
-    const updateCountdown = () => {
-      countdown = getExcommunicadoRemainingMs(contract, excommunicadoDurationMs);
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-
-    return () => clearInterval(interval);
-  });
+  // Derived
+  const isHighTable = $derived(contract.priority === 'highTable');
+  const terminusDisplay = $derived(contract.terminusTime || '23:59');
 
   // Touch handlers
   function handleTouchStart(e: TouchEvent) {
@@ -120,8 +94,8 @@
 
   <!-- Card - GPU Accelerated -->
   <div
-    class="relative bg-kl-gunmetal border transition-[border-color,box-shadow,opacity] duration-200 cursor-grab active:cursor-grabbing gpu-accelerated {contractIsOverdue ? 'border-kl-crimson' : 'border-kl-gold/20 hover:border-kl-gold/40'} {isCompleting ? 'opacity-50' : ''} {contractHasFailed ? 'opacity-60' : ''}"
-    style="transform: translate3d({offsetX}px, 0, 0); will-change: transform; {isDragging ? '' : 'transition: transform 0.3s ease-out;'} {contractIsOverdue ? 'box-shadow: 0 0 15px rgba(153, 0, 0, 0.3);' : ''}"
+    class="relative bg-kl-gunmetal border transition-[border-color,box-shadow,opacity] duration-200 cursor-grab active:cursor-grabbing gpu-accelerated {isHighTable ? 'border-kl-crimson' : 'border-kl-gold/20 hover:border-kl-gold/40'} {isCompleting ? 'opacity-50' : ''}"
+    style="transform: translate3d({offsetX}px, 0, 0); will-change: transform; {isDragging ? '' : 'transition: transform 0.3s ease-out;'} {isHighTable ? 'box-shadow: 0 0 10px rgba(153, 0, 0, 0.2);' : ''}"
     ontouchstart={handleTouchStart}
     ontouchmove={handleTouchMove}
     ontouchend={handleTouchEnd}
@@ -130,14 +104,12 @@
     <div class="p-4 flex items-center gap-4">
       <!-- Status icon -->
       <div
-        class="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center border {contract.priority === 'highTable' ? 'bg-kl-crimson/20 border-kl-crimson' : 'bg-kl-gold/10 border-kl-gold/30'} {contractIsOverdue ? 'animate-pulse-crimson' : ''}"
+        class="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center border {isHighTable ? 'bg-kl-crimson/20 border-kl-crimson' : 'bg-kl-gold/10 border-kl-gold/30'}"
       >
         <!-- Coin icon -->
         <svg
           viewBox="0 0 24 24"
-          class="w-5 h-5"
-          class:text-kl-crimson={contractIsOverdue}
-          class:text-kl-gold={!contractIsOverdue}
+          class="w-5 h-5 {isHighTable ? 'text-kl-crimson' : 'text-kl-gold'}"
           fill="currentColor"
         >
           <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5" />
@@ -149,11 +121,10 @@
       <div class="flex-1 min-w-0">
         <div class="relative">
           <h3
-            class="font-body text-base font-medium truncate"
-            class:text-kl-crimson={contractIsOverdue}
-            class:text-white={!contractIsOverdue}
+            class="text-base font-medium truncate {isHighTable ? 'text-kl-crimson' : 'text-white'}"
             class:line-through={isCompleting}
             class:opacity-50={isCompleting}
+            style="font-family: 'JetBrains Mono', monospace;"
           >
             {contract.title}
           </h3>
@@ -164,33 +135,20 @@
           {/if}
         </div>
 
-        <!-- Deadline / Countdown -->
+        <!-- Terminus Time -->
         <p
-          class="font-body text-sm mt-1"
-          class:text-kl-crimson={contractIsOverdue}
-          class:font-semibold={contractIsOverdue}
-          class:text-kl-gold-dim={!contractIsOverdue}
+          class="text-sm mt-1 {isHighTable ? 'text-kl-crimson/70' : 'text-kl-gold-dim'}"
+          style="font-family: 'JetBrains Mono', monospace;"
         >
-          {#if contractHasFailed}
-            <span class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-kl-crimson animate-pulse"></span>
-              FAILED
-            </span>
-          {:else if contractIsOverdue && countdown !== null}
-            <span class="font-mono tabular-nums">
-              {formatCountdown(countdown)}
-            </span>
-          {:else}
-            {formatDeadline(contract.deadlineAt)}
-          {/if}
+          TERMINUS: {terminusDisplay}
         </p>
       </div>
 
       <!-- Priority badge -->
-      {#if contract.priority === 'highTable'}
+      {#if isHighTable}
         <div
-          class="px-2 py-1 text-xs font-body font-semibold uppercase tracking-wider {contractIsOverdue ? 'bg-kl-crimson/20' : 'bg-kl-crimson/10'}"
-          style="color: var(--color-kl-crimson);"
+          class="px-2 py-1 text-xs font-semibold uppercase tracking-wider bg-kl-crimson/10"
+          style="color: var(--color-kl-crimson); font-family: 'JetBrains Mono', monospace;"
         >
           High Table
         </div>
@@ -211,4 +169,3 @@
     </div>
   {/if}
 </div>
-

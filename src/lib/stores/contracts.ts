@@ -1,4 +1,5 @@
-import { writable, derived, get } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
+import { browser } from '$app/environment';
 import {
   db,
   type Contract,
@@ -6,45 +7,79 @@ import {
   DEFAULT_SETTINGS,
   generateId,
   getSettings,
-  getActiveContracts,
-  getArchivedContracts as fetchArchivedContracts
+  getTodayActiveContracts,
+  getKilledContracts,
+  getAllContracts,
+  getClientTodayISODate
 } from '$lib/db';
+import { checkBurnProtocol, deleteBurnedContracts } from '$lib/burnProtocol';
 
 // ===== Core Stores =====
 export const contracts = writable<Contract[]>([]);
 export const settings = writable<AppSettings>(DEFAULT_SETTINGS);
 export const isLoading = writable(true);
 
+// ===== Today Store =====
+export const todayDate = writable(getClientTodayISODate());
+
+export function refreshTodayDate(): void {
+  todayDate.set(getClientTodayISODate());
+}
+
+// ===== Morning Report State (Burn Protocol) =====
+export const morningReportOpen = writable(false);
+export const morningReportBurned = writable<Contract[]>([]);
+
 // ===== Derived Stores =====
-export const activeContracts = derived(contracts, ($contracts) =>
+
+// Today's active contracts only
+export const todayActiveContracts = derived(
+  [contracts, todayDate],
+  ([$contracts, $today]) =>
+    $contracts
+      .filter((c) => c.targetDate === $today && c.status === 'active')
+      .sort((a, b) => {
+        // Sort by terminusTime if available
+        const aTime = a.terminusTime || '23:59';
+        const bTime = b.terminusTime || '23:59';
+        return aTime.localeCompare(bTime);
+      })
+);
+
+// Killed (completed) contracts for archive
+export const killedContracts = derived(contracts, ($contracts) =>
   $contracts
-    .filter((c) => c.status === 'active')
-    .sort((a, b) => new Date(a.deadlineAt).getTime() - new Date(b.deadlineAt).getTime())
+    .filter((c) => c.status === 'killed')
+    .sort((a, b) => {
+      const aTime = a.killedAt || a.createdAt;
+      const bTime = b.killedAt || b.createdAt;
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    })
 );
 
-export const archivedContracts = derived(contracts, ($contracts) =>
-  $contracts.filter((c) => c.status !== 'active')
-);
-
+// Vault count
 export const vaultCount = derived(settings, ($settings) => $settings.vaultCount);
 
-export const hasOverdue = derived(activeContracts, ($active) =>
-  $active.some((c) => new Date() > new Date(c.deadlineAt))
-);
+// Open count (today's active)
+export const openCount = derived(todayActiveContracts, ($active) => $active.length);
 
 // ===== Initialize Stores from DB =====
 export async function initializeStores(): Promise<void> {
+  if (!browser) return;
+  
   isLoading.set(true);
   
   try {
-    const [loadedSettings, activeList, archivedList] = await Promise.all([
+    // Refresh today's date
+    refreshTodayDate();
+    
+    const [loadedSettings, allContracts] = await Promise.all([
       getSettings(),
-      getActiveContracts(),
-      fetchArchivedContracts()
+      getAllContracts()
     ]);
     
     settings.set(loadedSettings);
-    contracts.set([...activeList, ...archivedList]);
+    contracts.set(allContracts);
   } catch (error) {
     console.error('Failed to initialize stores:', error);
   } finally {
@@ -52,21 +87,77 @@ export async function initializeStores(): Promise<void> {
   }
 }
 
+// ===== Burn Protocol on App Start =====
+/**
+ * Run the Burn Protocol on app start.
+ * - Burns stale active contracts from previous days
+ * - Opens Mission Report modal if any were burned
+ */
+export async function runBurnProtocolOnStart(): Promise<void> {
+  if (!browser) return;
+
+  // Refresh today's date
+  refreshTodayDate();
+
+  // Run the cleaner
+  const burned = await checkBurnProtocol();
+
+  if (burned.length > 0) {
+    // Update local store to reflect burned status
+    contracts.update((list) =>
+      list.map((c) =>
+        burned.some((b) => b.id === c.id) ? { ...c, status: 'burned' as const } : c
+      )
+    );
+
+    // Open the Mission Report modal
+    morningReportBurned.set(burned);
+    morningReportOpen.set(true);
+  }
+}
+
+/**
+ * Clean House - Delete all burned contracts and close the Mission Report modal.
+ * Called when user acknowledges the burned tasks.
+ */
+export async function cleanHouse(): Promise<void> {
+  if (!browser) return;
+
+  // Get the burned contract IDs
+  let burnedIds: string[] = [];
+  morningReportBurned.subscribe((burned) => {
+    burnedIds = burned.map((c) => c.id);
+  })();
+
+  // Delete from database
+  await deleteBurnedContracts(burnedIds);
+
+  // Remove from local store
+  contracts.update((list) => list.filter((c) => !burnedIds.includes(c.id)));
+
+  // Close modal and clear state
+  morningReportOpen.set(false);
+  morningReportBurned.set([]);
+}
+
 // ===== Optimistic Contract Operations =====
 
 /**
  * Add a new contract - Optimistic UI pattern
- * Updates the store INSTANTLY, then writes to DB asynchronously
+ * In hardcore mode, targetDate is always TODAY
  */
 export function addContract(
   title: string,
-  deadlineAt: Date,
+  terminusTime: string = '23:59',
   priority: 'normal' | 'highTable' = 'normal'
 ): Contract {
+  const today = getClientTodayISODate();
+  
   const newContract: Contract = {
     id: generateId(),
     title,
-    deadlineAt: deadlineAt.toISOString(),
+    targetDate: today, // ALWAYS today in hardcore mode
+    terminusTime,
     priority,
     status: 'active',
     createdAt: new Date().toISOString()
@@ -86,16 +177,15 @@ export function addContract(
 }
 
 /**
- * Complete a contract - Optimistic UI pattern
- * Updates store instantly, then persists
+ * Kill a contract (complete it) - Optimistic UI pattern
  */
-export function completeContractOptimistic(id: string): void {
-  const completedAt = new Date().toISOString();
+export function killContractOptimistic(id: string): void {
+  const killedAt = new Date().toISOString();
 
   // INSTANT: Update store immediately
   contracts.update((list) =>
     list.map((c) =>
-      c.id === id ? { ...c, status: 'completed' as const, completedAt } : c
+      c.id === id ? { ...c, status: 'killed' as const, killedAt } : c
     )
   );
 
@@ -104,29 +194,14 @@ export function completeContractOptimistic(id: string): void {
 
   // ASYNC: Persist to DB
   Promise.all([
-    db.contracts.update(id, { status: 'completed', completedAt }),
+    db.contracts.update(id, { status: 'killed', killedAt }),
     db.settings.get('settings').then(async (s) => {
       if (s) {
         await db.settings.put({ ...s, vaultCount: s.vaultCount + 1 });
       }
     })
   ]).catch((err) => {
-    console.error('Failed to persist completion:', err);
-  });
-}
-
-/**
- * Fail a contract - Optimistic UI pattern
- */
-export function failContractOptimistic(id: string): void {
-  // INSTANT: Update store
-  contracts.update((list) =>
-    list.map((c) => (c.id === id ? { ...c, status: 'failed' as const } : c))
-  );
-
-  // ASYNC: Persist
-  db.contracts.update(id, { status: 'failed' }).catch((err) => {
-    console.error('Failed to persist failure:', err);
+    console.error('Failed to persist kill:', err);
   });
 }
 
@@ -167,67 +242,110 @@ export function completeOnboardingOptimistic(): void {
   });
 }
 
-// ===== Contract Status Helpers =====
-export function isOverdue(contract: Contract): boolean {
-  if (contract.status !== 'active') return false;
-  return new Date() > new Date(contract.deadlineAt);
-}
+// ===== Real-Time Deadline Monitoring =====
 
-export function getExcommunicadoRemainingMs(
-  contract: Contract,
-  durationMs: number = 45 * 60 * 1000
-): number {
-  if (!isOverdue(contract)) return durationMs;
+let deadlineCheckInterval: ReturnType<typeof setInterval> | null = null;
 
-  const deadline = new Date(contract.deadlineAt).getTime();
-  const excommunicadoEnd = deadline + durationMs;
-  const remaining = excommunicadoEnd - Date.now();
-
-  return Math.max(0, remaining);
-}
-
-export function hasFailed(
-  contract: Contract,
-  durationMs: number = 45 * 60 * 1000
-): boolean {
-  return isOverdue(contract) && getExcommunicadoRemainingMs(contract, durationMs) === 0;
-}
-
-export function formatCountdown(ms: number): string {
-  if (ms <= 0) return '00:00:00';
-
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  return [hours, minutes, seconds].map((n) => n.toString().padStart(2, '0')).join(':');
-}
-
-export function formatDeadline(dateStr: string): string {
-  const date = new Date(dateStr);
+/**
+ * Check if a contract has passed its deadline
+ */
+function isDeadlinePassed(contract: Contract): boolean {
   const now = new Date();
-  const isToday = date.toDateString() === now.toDateString();
-
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const isTomorrow = date.toDateString() === tomorrow.toDateString();
-
-  const timeStr = date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  });
-
-  if (isToday) return `Today ${timeStr}`;
-  if (isTomorrow) return `Tomorrow ${timeStr}`;
-
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  });
+  const today = getClientTodayISODate();
+  
+  // If targetDate is before today, it's definitely passed
+  if (contract.targetDate < today) return true;
+  
+  // If targetDate is today, check the terminus time
+  if (contract.targetDate === today) {
+    const [hours, minutes] = (contract.terminusTime || '23:59').split(':').map(Number);
+    const deadlineTime = new Date();
+    deadlineTime.setHours(hours, minutes, 0, 0);
+    return now > deadlineTime;
+  }
+  
+  return false;
 }
 
+/**
+ * Burn contracts that have passed their deadline in real-time
+ */
+export async function burnExpiredContracts(): Promise<Contract[]> {
+  if (!browser) return [];
+  
+  let expiredContracts: Contract[] = [];
+  
+  // Get current active contracts from store
+  contracts.subscribe(($contracts) => {
+    expiredContracts = $contracts.filter(
+      (c) => c.status === 'active' && isDeadlinePassed(c)
+    );
+  })();
+  
+  if (expiredContracts.length === 0) return [];
+  
+  const ids = expiredContracts.map((c) => c.id);
+  
+  // Update in store immediately (optimistic)
+  contracts.update((list) =>
+    list.map((c) =>
+      ids.includes(c.id) ? { ...c, status: 'burned' as const } : c
+    )
+  );
+  
+  // Persist to database
+  try {
+    await Promise.all(
+      ids.map((id) => db.contracts.update(id, { status: 'burned' }))
+    );
+  } catch (err) {
+    console.error('Failed to burn expired contracts:', err);
+  }
+  
+  return expiredContracts.map((c) => ({ ...c, status: 'burned' as const }));
+}
+
+/**
+ * Start real-time deadline monitoring
+ * Checks every 30 seconds for expired contracts
+ */
+export function startDeadlineMonitoring(): void {
+  if (!browser || deadlineCheckInterval) return;
+  
+  // Check immediately on start
+  burnExpiredContracts().then((burned) => {
+    if (burned.length > 0) {
+      console.log(`[BURN] ${burned.length} contract(s) burned in real-time`);
+      // Show Mission Report if contracts were burned during monitoring
+      morningReportBurned.set(burned);
+      morningReportOpen.set(true);
+    }
+  });
+  
+  // Then check every 30 seconds
+  deadlineCheckInterval = setInterval(async () => {
+    const burned = await burnExpiredContracts();
+    if (burned.length > 0) {
+      console.log(`[BURN] ${burned.length} contract(s) burned in real-time`);
+      morningReportBurned.set(burned);
+      morningReportOpen.set(true);
+    }
+  }, 30000); // 30 seconds
+}
+
+/**
+ * Stop deadline monitoring
+ */
+export function stopDeadlineMonitoring(): void {
+  if (deadlineCheckInterval) {
+    clearInterval(deadlineCheckInterval);
+    deadlineCheckInterval = null;
+  }
+}
+
+// ===== Formatting Helpers =====
+
+export function formatTerminusTime(time: string | undefined): string {
+  if (!time) return '23:59';
+  return time;
+}

@@ -1,25 +1,24 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { browser } from '$app/environment';
   import OathScreen from '$lib/components/OathScreen.svelte';
   import ContractCard from '$lib/components/ContractCard.svelte';
+  import { getClientTodayISODate } from '$lib/db';
   import {
-    activeContracts,
-    archivedContracts,
+    todayActiveContracts,
+    killedContracts,
     vaultCount,
     settings,
     isLoading,
     addContract,
-    completeContractOptimistic,
-    completeOnboardingOptimistic
+    killContractOptimistic,
+    completeOnboardingOptimistic,
+    openCount
   } from '$lib/stores/contracts';
 
   // UI State
   let showOath = $state(true);
   let showCreateForm = $state(false);
   let newContractTitle = $state('');
-  let newContractDate = $state('');
-  let newContractTime = $state('');
+  let newContractTime = $state('23:59');
   let isHighTable = $state(false);
 
   // Check if onboarding is complete
@@ -34,34 +33,42 @@
     showOath = false;
   }
 
-  function handleContractComplete(id: string) {
-    completeContractOptimistic(id);
+  function handleContractKill(id: string) {
+    killContractOptimistic(id);
   }
 
   function handleCreateContract(e: Event) {
     e.preventDefault();
-    if (!newContractTitle.trim() || !newContractDate) return;
+    if (!newContractTitle.trim()) return;
 
-    const deadline = new Date(`${newContractDate}T${newContractTime || '12:00'}`);
-    addContract(newContractTitle.trim(), deadline, isHighTable ? 'highTable' : 'normal');
+    // In hardcore mode, contracts are ALWAYS for today
+    addContract(
+      newContractTitle.trim(),
+      newContractTime || '23:59',
+      isHighTable ? 'highTable' : 'normal'
+    );
 
     // Reset form
     newContractTitle = '';
-    newContractDate = '';
-    newContractTime = '';
+    newContractTime = '23:59';
     isHighTable = false;
     showCreateForm = false;
   }
 
-  // Default deadline to tomorrow
-  function setDefaultDeadline(): void {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    newContractDate = tomorrow.toISOString().slice(0, 10);
-    newContractTime = '12:00';
+  function openCreateForm() {
+    showCreateForm = true;
+    newContractTime = '23:59';
   }
 
-  const openCount = $derived($activeContracts.length);
+  // Get today's date for display
+  const todayFormatted = $derived(() => {
+    const today = new Date();
+    return today.toLocaleDateString('en-US', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  });
 </script>
 
 <svelte:head>
@@ -86,10 +93,7 @@
       <button
         type="button"
         class="w-10 h-10 rounded-full border border-kl-gold/40 flex items-center justify-center text-kl-gold hover:border-kl-gold transition-colors"
-        onclick={() => {
-          showCreateForm = true;
-          setDefaultDeadline();
-        }}
+        onclick={openCreateForm}
       >
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4" />
@@ -103,13 +107,13 @@
     </div>
   </header>
 
-  <!-- Section Header -->
+  <!-- Section Header - Today's Contracts -->
   <div class="flex items-center justify-between px-6 py-4">
     <span class="text-sm tracking-widest text-kl-gold/70" style="font-family: 'JetBrains Mono', monospace;">
-      ACTIVE CONTRACTS
+      TODAY'S CONTRACTS
     </span>
     <span class="text-sm tracking-wider text-kl-gold" style="font-family: 'JetBrains Mono', monospace;">
-      {openCount} OPEN
+      {$openCount} OPEN
     </span>
   </div>
 
@@ -122,7 +126,7 @@
           <div class="h-16 bg-kl-gunmetal/50 animate-pulse"></div>
         {/each}
       </div>
-    {:else if $activeContracts.length === 0}
+    {:else if $todayActiveContracts.length === 0}
       <!-- Empty state -->
       <div class="flex items-center justify-center pt-16">
         <p class="text-kl-gold/40 text-sm tracking-widest text-center" style="font-family: 'JetBrains Mono', monospace;">
@@ -132,25 +136,24 @@
     {:else}
       <!-- Contract list -->
       <div class="space-y-3">
-        {#each $activeContracts as contract (contract.id)}
-          <ContractCard {contract} onComplete={handleContractComplete} />
+        {#each $todayActiveContracts as contract (contract.id)}
+          <ContractCard {contract} onComplete={handleContractKill} />
         {/each}
       </div>
     {/if}
 
-    <!-- Archive Section -->
-    {#if $archivedContracts.length > 0}
+    <!-- Archive Section (Killed Contracts) -->
+    {#if $killedContracts.length > 0}
       <section class="mt-12">
         <h2 class="text-xs tracking-widest text-kl-gold/50 mb-6" style="font-family: 'JetBrains Mono', monospace;">
           ARCHIVE
         </h2>
 
         <div class="space-y-4">
-          {#each $archivedContracts as contract (contract.id)}
+          {#each $killedContracts as contract (contract.id)}
             {@const isHighTableOrder = contract.priority === 'highTable'}
-            {@const isFailed = contract.status === 'failed'}
-            {@const completedDate = contract.completedAt ? new Date(contract.completedAt) : new Date(contract.deadlineAt)}
-            {@const timeStr = completedDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+            {@const killedDate = contract.killedAt ? new Date(contract.killedAt) : new Date(contract.createdAt)}
+            {@const timeStr = killedDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
             
             <div class="flex items-start gap-4">
               <!-- Left: Timeline + Icon -->
@@ -188,7 +191,7 @@
                   {contract.title}
                 </h3>
                 <p class="text-xs mt-1 text-kl-gold/60" style="font-family: 'JetBrains Mono', monospace;">
-                  STATUS: {isFailed ? 'FAILED' : 'TERMINATED'}
+                  STATUS: TERMINATED
                 </p>
               </div>
 
@@ -207,17 +210,14 @@
   <button
     type="button"
     class="fixed bottom-6 right-6 w-14 h-14 bg-kl-gold text-kl-black flex items-center justify-center z-40 active:scale-95 transition-transform"
-    onclick={() => {
-      showCreateForm = true;
-      setDefaultDeadline();
-    }}
+    onclick={openCreateForm}
   >
     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
     </svg>
   </button>
 
-  <!-- Create Contract Modal -->
+  <!-- Create Contract Modal (Today Only - Hardcore Mode) -->
   {#if showCreateForm}
     <div class="fixed inset-0 bg-black/90 z-50 flex items-end">
       <div class="w-full bg-kl-gunmetal p-6">
@@ -227,9 +227,14 @@
         </div>
 
         <form onsubmit={handleCreateContract}>
-          <h3 class="text-xl tracking-widest text-kl-gold mb-6" style="font-family: 'JetBrains Mono', monospace;">
+          <h3 class="text-xl tracking-widest text-kl-gold mb-2" style="font-family: 'JetBrains Mono', monospace;">
             ISSUE NEW CONTRACT
           </h3>
+          
+          <!-- Today indicator -->
+          <p class="text-xs text-kl-crimson mb-6" style="font-family: 'JetBrains Mono', monospace;">
+            24H HARDCORE: Must be completed today or it burns
+          </p>
 
           <div class="space-y-5">
             <!-- Target Name -->
@@ -247,25 +252,17 @@
               />
             </div>
 
-            <!-- Terminus Date -->
+            <!-- Terminus Time (Time only - date is always today) -->
             <div>
               <label class="block text-xs text-kl-gold/50 mb-2 tracking-widest" style="font-family: 'JetBrains Mono', monospace;">
-                TERMINUS DATE
+                TERMINUS TIME
               </label>
-              <div class="flex gap-3">
-                <input
-                  type="date"
-                  bind:value={newContractDate}
-                  class="flex-1 bg-kl-black border border-kl-gold/20 p-4 text-white focus:border-kl-gold focus:outline-none"
-                  style="font-family: 'JetBrains Mono', monospace; color-scheme: dark;"
-                />
-                <input
-                  type="time"
-                  bind:value={newContractTime}
-                  class="w-32 bg-kl-black border border-kl-gold/20 p-4 text-white focus:border-kl-gold focus:outline-none"
-                  style="font-family: 'JetBrains Mono', monospace; color-scheme: dark;"
-                />
-              </div>
+              <input
+                type="time"
+                bind:value={newContractTime}
+                class="w-full bg-kl-black border border-kl-gold/20 p-4 text-white focus:border-kl-gold focus:outline-none"
+                style="font-family: 'JetBrains Mono', monospace; color-scheme: dark;"
+              />
             </div>
 
             <!-- High Table Order Toggle -->

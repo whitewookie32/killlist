@@ -3,13 +3,18 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import TriggerIndicator from '$lib/components/TriggerIndicator.svelte';
+  import MissionReportModal from '$lib/components/MissionReportModal.svelte';
   import {
     initializeStores,
-    activeContracts,
-    completeContractOptimistic,
-    settings
+    todayActiveContracts,
+    killContractOptimistic,
+    runBurnProtocolOnStart,
+    morningReportOpen,
+    morningReportBurned,
+    startDeadlineMonitoring,
+    stopDeadlineMonitoring
   } from '$lib/stores/contracts';
-  import { playChargeUp, playKillConfirm, startTicking, stopTicking } from '$lib/audio';
+  import { playChargeUp, playKillConfirm } from '$lib/audio';
 
   let { children } = $props();
 
@@ -21,9 +26,13 @@
 
   const CHARGE_DURATION = 800; // ms to fully charge
 
-  // Initialize stores on mount
-  onMount(() => {
-    initializeStores();
+  // Initialize stores and run burn protocol on mount
+  onMount(async () => {
+    await initializeStores();
+    await runBurnProtocolOnStart();
+    
+    // Start real-time deadline monitoring (checks every 30s)
+    startDeadlineMonitoring();
 
     // Keyboard event listeners for spacebar trigger
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -50,6 +59,7 @@
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      stopDeadlineMonitoring();
       if (chargeAnimationFrame) {
         cancelAnimationFrame(chargeAnimationFrame);
       }
@@ -82,53 +92,40 @@
 
     // If fully charged, execute kill on top contract
     if (chargeProgress >= 1) {
-      const topContract = $activeContracts[0];
+      const topContract = $todayActiveContracts[0];
       if (topContract) {
         playKillConfirm();
-        completeContractOptimistic(topContract.id);
+        killContractOptimistic(topContract.id);
       }
     }
 
     isCharging = false;
     chargeProgress = 0;
   }
-
-  // Watch for excommunicado state (overdue contracts)
-  $effect(() => {
-    if (!browser) return;
-
-    const hasOverdue = $activeContracts.some((c) => new Date() > new Date(c.deadlineAt));
-
-    if (hasOverdue) {
-      document.documentElement.classList.add('excommunicado');
-      startTicking();
-    } else {
-      document.documentElement.classList.remove('excommunicado');
-      stopTicking();
-    }
-
-    return () => {
-      document.documentElement.classList.remove('excommunicado');
-      stopTicking();
-    };
-  });
 </script>
 
 <svelte:head>
   <meta name="theme-color" content="#DC2626" />
 </svelte:head>
 
+<!-- Mission Report Modal (Burn Protocol) -->
+{#if $morningReportOpen}
+  <MissionReportModal
+    burnedContracts={$morningReportBurned}
+    onClose={() => morningReportOpen.set(false)}
+  />
+{/if}
+
 <!-- Spacebar Trigger Indicator -->
 <TriggerIndicator
   isVisible={isCharging}
   chargeProgress={chargeProgress}
   onKill={() => {
-    const topContract = $activeContracts[0];
+    const topContract = $todayActiveContracts[0];
     if (topContract) {
-      completeContractOptimistic(topContract.id);
+      killContractOptimistic(topContract.id);
     }
   }}
 />
 
 {@render children()}
-

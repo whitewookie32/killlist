@@ -1,32 +1,42 @@
 import { browser } from '$app/environment';
 
+// ===== Date Helpers =====
+/**
+ * Get the current client calendar day as YYYY-MM-DD (local timezone, NOT UTC)
+ */
+export function getClientTodayISODate(d = new Date()): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 // ===== Contract Types =====
 export type Priority = 'normal' | 'highTable';
-export type ContractStatus = 'active' | 'completed' | 'failed';
+export type ContractStatus = 'active' | 'killed' | 'burned';
 
 export interface Contract {
   id: string;
   title: string;
-  deadlineAt: string; // ISO string
+  targetDate: string; // YYYY-MM-DD (local calendar day - the day this task belongs to)
+  terminusTime?: string; // HH:MM (optional time within the day)
   priority: Priority;
   status: ContractStatus;
   createdAt: string;
-  completedAt?: string;
+  killedAt?: string; // When the task was completed/killed
 }
 
 export interface AppSettings {
   id: 'settings';
   onboardingComplete: boolean;
   vaultCount: number;
-  excommunicadoDurationMs: number;
 }
 
 // ===== Default Settings =====
 export const DEFAULT_SETTINGS: AppSettings = {
   id: 'settings',
   onboardingComplete: false,
-  vaultCount: 0,
-  excommunicadoDurationMs: 45 * 60 * 1000 // 45 minutes
+  vaultCount: 0
 };
 
 // ===== ID Generator =====
@@ -37,7 +47,11 @@ export function generateId(): string {
 // ===== Lazy Database Initialization (Browser Only) =====
 let dbInstance: any = null;
 
-async function getDb() {
+/**
+ * Get the Dexie database instance (browser-only, lazy initialized)
+ * Exported for use by burnProtocol and other modules that need direct DB access
+ */
+export async function getDb() {
   if (!browser) {
     throw new Error('Database can only be accessed in browser');
   }
@@ -51,9 +65,49 @@ async function getDb() {
 
       constructor() {
         super('KillListDB');
+        
+        // Version 1: Original schema
         this.version(1).stores({
           contracts: 'id, status, deadlineAt, createdAt',
           settings: 'id'
+        });
+        
+        // Version 2: Burn Protocol - add targetDate, change status values
+        this.version(2).stores({
+          contracts: 'id, targetDate, status, createdAt, [targetDate+status]',
+          settings: 'id'
+        }).upgrade(async (tx: any) => {
+          const table = tx.table('contracts');
+          
+          await table.toCollection().modify((c: any) => {
+            // Compute targetDate from deadlineAt or createdAt (local calendar day)
+            const baseDate = c.deadlineAt ?? c.createdAt;
+            const dt = baseDate ? new Date(baseDate) : new Date();
+            c.targetDate = getClientTodayISODate(dt);
+            
+            // Extract time from deadlineAt if present
+            if (c.deadlineAt) {
+              const deadline = new Date(c.deadlineAt);
+              c.terminusTime = deadline.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                hour12: false 
+              });
+            }
+            
+            // Migrate status values
+            if (c.status === 'completed') {
+              c.status = 'killed';
+              c.killedAt = c.completedAt;
+            } else if (c.status === 'failed') {
+              c.status = 'burned';
+            }
+            // 'active' stays 'active'
+            
+            // Clean up old fields
+            delete c.deadlineAt;
+            delete c.completedAt;
+          });
         });
       }
     }
@@ -101,13 +155,16 @@ export async function incrementVault(): Promise<number> {
 // ===== Contract Operations =====
 export async function createContract(
   title: string,
-  deadlineAt: Date,
+  terminusTime: string = '23:59',
   priority: Priority = 'normal'
 ): Promise<Contract> {
+  const today = getClientTodayISODate();
+  
   const contract: Contract = {
     id: generateId(),
     title,
-    deadlineAt: deadlineAt.toISOString(),
+    targetDate: today, // Always today - hardcore mode
+    terminusTime,
     priority,
     status: 'active',
     createdAt: new Date().toISOString()
@@ -121,52 +178,50 @@ export async function createContract(
   return contract;
 }
 
-export async function getActiveContracts(): Promise<Contract[]> {
+export async function getTodayActiveContracts(): Promise<Contract[]> {
   if (!browser) return [];
   
   const db = await getDb();
-  return db.contracts.where('status').equals('active').sortBy('deadlineAt');
-}
-
-export async function getCompletedContracts(): Promise<Contract[]> {
-  if (!browser) return [];
+  const today = getClientTodayISODate();
   
-  const db = await getDb();
-  return db.contracts.where('status').equals('completed').reverse().sortBy('completedAt');
+  return db.contracts
+    .where('[targetDate+status]')
+    .equals([today, 'active'])
+    .toArray();
 }
 
-export async function getArchivedContracts(): Promise<Contract[]> {
+export async function getKilledContracts(): Promise<Contract[]> {
   if (!browser) return [];
   
   const db = await getDb();
   const allContracts = await db.contracts.toArray();
-  const archived = allContracts.filter((c: Contract) => c.status !== 'active');
+  const killed = allContracts.filter((c: Contract) => c.status === 'killed');
   
-  archived.sort((a: Contract, b: Contract) => {
-    const aTime = a.completedAt || a.deadlineAt;
-    const bTime = b.completedAt || b.deadlineAt;
+  killed.sort((a: Contract, b: Contract) => {
+    const aTime = a.killedAt || a.createdAt;
+    const bTime = b.killedAt || b.createdAt;
     return new Date(bTime).getTime() - new Date(aTime).getTime();
   });
   
-  return archived;
+  return killed;
 }
 
-export async function completeContract(id: string): Promise<void> {
+export async function killContract(id: string): Promise<void> {
   if (!browser) return;
   
   const db = await getDb();
   await db.contracts.update(id, {
-    status: 'completed',
-    completedAt: new Date().toISOString()
+    status: 'killed',
+    killedAt: new Date().toISOString()
   });
   await incrementVault();
 }
 
-export async function failContract(id: string): Promise<void> {
+export async function burnContract(id: string): Promise<void> {
   if (!browser) return;
   
   const db = await getDb();
-  await db.contracts.update(id, { status: 'failed' });
+  await db.contracts.update(id, { status: 'burned' });
 }
 
 export async function deleteContract(id: string): Promise<void> {
@@ -176,7 +231,21 @@ export async function deleteContract(id: string): Promise<void> {
   await db.contracts.delete(id);
 }
 
-// Export a proxy for direct db access (for stores)
+export async function deleteContracts(ids: string[]): Promise<void> {
+  if (!browser || ids.length === 0) return;
+  
+  const db = await getDb();
+  await db.contracts.bulkDelete(ids);
+}
+
+export async function getAllContracts(): Promise<Contract[]> {
+  if (!browser) return [];
+  
+  const db = await getDb();
+  return db.contracts.toArray();
+}
+
+// ===== Legacy proxy for stores (backwards compatibility) =====
 export const db = {
   contracts: {
     async add(contract: Contract) {
@@ -193,6 +262,11 @@ export const db = {
       if (!browser) return;
       const database = await getDb();
       return database.contracts.delete(id);
+    },
+    async bulkDelete(ids: string[]) {
+      if (!browser) return;
+      const database = await getDb();
+      return database.contracts.bulkDelete(ids);
     }
   },
   settings: {
