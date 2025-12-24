@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { slide } from 'svelte/transition';
   import type { Contract } from '$lib/db';
   import { playExecute } from '$lib/audio';
   import { trackContractKilled, trackContractAborted } from '$lib/analytics';
@@ -17,6 +18,8 @@
   let isCompleting = $state(false);
   let showKilledStamp = $state(false);
   let isDragging = $state(false);
+  let isExpanded = $state(false);
+  let didSwipe = $state(false);
 
   // Touch tracking refs
   let startX = 0;
@@ -24,15 +27,43 @@
 
   const SWIPE_THRESHOLD = 120; // px to trigger completion
   const VELOCITY_THRESHOLD = 0.5; // px/ms
+  const TAP_TOLERANCE = 10; // px - movement less than this is considered a tap
 
   // Derived
   const isExecutiveOrder = $derived(contract.priority === 'highTable');
+
+  // Toggle details expansion
+  function toggleDetails() {
+    if (didSwipe) {
+      didSwipe = false;
+      return;
+    }
+    isExpanded = !isExpanded;
+  }
+
+  // Format accepted timestamp
+  function formatAcceptedTime(): string {
+    const date = new Date(contract.acceptedAt || contract.createdAt);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+    if (diffHours > 0) {
+      return `Accepted ${diffHours}h ago`;
+    } else if (diffMinutes > 0) {
+      return `Accepted ${diffMinutes}m ago`;
+    } else {
+      return 'Accepted just now';
+    }
+  }
 
   // Touch handlers
   function handleTouchStart(e: TouchEvent) {
     if (isCompleting) return;
 
     isDragging = true;
+    didSwipe = false;
     startX = e.touches[0].clientX;
     startTime = Date.now();
   }
@@ -41,6 +72,12 @@
     if (!isDragging || isCompleting) return;
 
     const deltaX = e.touches[0].clientX - startX;
+    
+    // Mark as swipe if movement exceeds tap tolerance
+    if (Math.abs(deltaX) > TAP_TOLERANCE) {
+      didSwipe = true;
+    }
+    
     // Only allow swipe right
     offsetX = Math.max(0, deltaX);
   }
@@ -55,6 +92,7 @@
 
     // Check if swipe was aggressive enough
     if (offsetX > SWIPE_THRESHOLD || velocity > VELOCITY_THRESHOLD) {
+      didSwipe = true;
       triggerCompletion();
     } else {
       // Spring back
@@ -87,7 +125,8 @@
     }, 600);
   }
 
-  function handleAbort() {
+  function handleAbort(e: MouseEvent) {
+    e.stopPropagation();
     trackContractAborted();
     onAbort?.(contract.id);
   }
@@ -126,9 +165,14 @@
     <div class="p-4">
       <!-- Header row: Title + Priority badge -->
       <div class="flex items-start justify-between gap-3 mb-2">
-        <div class="flex-1 min-w-0 relative">
+        <!-- Clickable title area (tap to expand) -->
+        <div
+          class="flex-1 min-w-0 relative cursor-pointer select-none"
+          onclick={toggleDetails}
+        >
           <h3
-            class="text-base font-medium truncate {isExecutiveOrder ? 'text-kl-gold' : 'text-white'}"
+            class="text-base font-medium transition-all {isExecutiveOrder ? 'text-kl-gold' : 'text-white'}
+              {isExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'}"
             class:line-through={isCompleting}
             class:opacity-50={isCompleting}
             style="font-family: 'JetBrains Mono', monospace;"
@@ -147,6 +191,21 @@
           </div>
         {/if}
       </div>
+
+      <!-- Expanded details panel -->
+      {#if isExpanded}
+        <div
+          class="mb-2 pt-2 border-t border-neutral-700/50"
+          transition:slide={{ duration: 200 }}
+        >
+          <p
+            class="text-[10px] text-neutral-500 tracking-wider"
+            style="font-family: 'JetBrains Mono', monospace;"
+          >
+            {formatAcceptedTime()}
+          </p>
+        </div>
+      {/if}
 
       <!-- Footer row: Deadline + Abort -->
       <div class="flex items-center justify-between">
