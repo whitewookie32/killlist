@@ -18,7 +18,7 @@
     registryCount
   } from '$lib/stores/contracts';
   import { trackDossierFiled, trackOathCompleted } from '$lib/analytics';
-  import { playAcceptContract, triggerHapticFeedback, isAudioUnlocked } from '$lib/audio';
+  import { playLoad, triggerHapticFeedback, unlockAudio } from '$lib/audio';
 
   // UI State
   let showOath = $state(true);
@@ -82,11 +82,11 @@
     
     // Visual/Audio feedback for Active contracts
     if (status === 'active') {
-      // Play "Load" sound (accept contract sound) if audio is ready
-      if (isAudioUnlocked()) {
-        playAcceptContract();
-      }
-      // Trigger heavy vibration as backup feedback
+      // Unlock audio on first user interaction (required for iOS/Safari)
+      unlockAudio();
+      // Play "Lock and Load" sound (load.mp3)
+      playLoad();
+      // Trigger heavy vibration for haptic feedback
       triggerHapticFeedback('heavy');
     }
     

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
   import type { Contract } from '$lib/db';
-  import { playExecute } from '$lib/audio';
+  import { playExecuteSound, unlockAudio } from '$lib/audio';
   import { trackContractKilled, trackContractAborted } from '$lib/analytics';
 
   // Props
@@ -102,7 +102,8 @@
 
   function triggerCompletion() {
     isCompleting = true;
-    playExecute();
+    unlockAudio();
+    playExecuteSound();
 
     // Show KILLED stamp
     showKilledStamp = true;

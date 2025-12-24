@@ -1,6 +1,6 @@
 <script lang="ts">
   import { addContract } from '$lib/stores/contracts';
-  import { playCoin } from '$lib/audio';
+  import { playUpload, unlockAudio } from '$lib/audio';
   import { trackDeadDropUsed } from '$lib/analytics';
 
   // Props
@@ -63,7 +63,8 @@
     isScrambling = false;
 
     // Play sound
-    playCoin();
+    unlockAudio();
+    playUpload();
 
     // Add to store
     addContract(title);

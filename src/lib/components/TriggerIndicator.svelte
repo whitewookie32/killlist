@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { playChargeUp, playKillConfirm } from '$lib/audio';
-
   interface Props {
     isVisible: boolean;
     chargeProgress: number; // 0 to 1

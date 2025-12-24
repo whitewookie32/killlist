@@ -15,7 +15,7 @@
     startDeadlineMonitoring,
     stopDeadlineMonitoring
   } from '$lib/stores/contracts';
-  import { playChargeUp, playKillConfirm } from '$lib/audio';
+  import { playChargeUp, playExecuteSound, unlockAudio } from '$lib/audio';
   import { initAnalytics, trackContractKilled, trackContractsBurned } from '$lib/analytics';
 
   let { children } = $props();
@@ -97,6 +97,7 @@
   function startCharge() {
     isCharging = true;
     chargeStartTime = Date.now();
+    unlockAudio();
     playChargeUp();
     animateCharge();
   }
@@ -122,7 +123,7 @@
     if (chargeProgress >= 1) {
       const topContract = $todayActiveContracts[0];
       if (topContract) {
-        playKillConfirm();
+        playExecuteSound();
         killContractOptimistic(topContract.id);
         
         // Track the kill via spacebar

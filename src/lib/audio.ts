@@ -4,6 +4,82 @@
 let audioContext: AudioContext | null = null;
 let isUnlocked = false;
 
+// Preloaded audio elements for MP3 files
+let loadSound: HTMLAudioElement | null = null;
+let executeSound: HTMLAudioElement | null = null;
+let uploadSound: HTMLAudioElement | null = null;
+
+/**
+ * Preload sound files for instant playback
+ */
+function preloadSounds(): void {
+  if (typeof window === 'undefined') return;
+  
+  if (!loadSound) {
+    loadSound = new Audio('/sound/load.mp3');
+    loadSound.preload = 'auto';
+  }
+  if (!executeSound) {
+    executeSound = new Audio('/sound/execute.mp3');
+    executeSound.preload = 'auto';
+  }
+  if (!uploadSound) {
+    uploadSound = new Audio('/sound/upload.mp3');
+    uploadSound.preload = 'auto';
+  }
+}
+
+/**
+ * Play the "Lock and Load" sound (load.mp3)
+ * Used when accepting a contract or creating an active task
+ */
+export function playLoad(): void {
+  if (typeof window === 'undefined') return;
+  preloadSounds();
+  
+  if (loadSound) {
+    loadSound.currentTime = 0;
+    loadSound.play().catch(() => {
+      // Fallback to synthesized sound if MP3 fails
+      playAcceptContract();
+    });
+  }
+}
+
+/**
+ * Play the "Execute" sound (execute.mp3)
+ * Used when killing/completing a contract
+ */
+export function playExecuteSound(): void {
+  if (typeof window === 'undefined') return;
+  preloadSounds();
+  
+  if (executeSound) {
+    executeSound.currentTime = 0;
+    executeSound.play().catch(() => {
+      // Fallback to synthesized sound if MP3 fails
+      playExecute();
+    });
+  }
+}
+
+/**
+ * Play the "Upload" sound (upload.mp3)
+ * Used when adding to the Dead Drop / Registry
+ */
+export function playUpload(): void {
+  if (typeof window === 'undefined') return;
+  preloadSounds();
+  
+  if (uploadSound) {
+    uploadSound.currentTime = 0;
+    uploadSound.play().catch(() => {
+      // Fallback to synthesized sound if MP3 fails
+      playCoin();
+    });
+  }
+}
+
 /**
  * Get or create the AudioContext singleton
  */
