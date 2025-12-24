@@ -1,10 +1,11 @@
 <script lang="ts">
-  import '../app.css';
-  import { onMount } from 'svelte';
-  import { browser } from '$app/environment';
-  import TriggerIndicator from '$lib/components/TriggerIndicator.svelte';
-  import MissionReportModal from '$lib/components/MissionReportModal.svelte';
-  import SplashScreen from '$lib/components/SplashScreen.svelte';
+  import "../app.css";
+  import { onMount } from "svelte";
+  import { browser } from "$app/environment";
+  import TriggerIndicator from "$lib/components/TriggerIndicator.svelte";
+  import MissionReportModal from "$lib/components/MissionReportModal.svelte";
+  import SplashScreen from "$lib/components/SplashScreen.svelte";
+  import MorningReport from "$lib/components/MorningReport.svelte";
   import {
     initializeStores,
     todayActiveContracts,
@@ -13,12 +14,20 @@
     morningReportOpen,
     morningReportBurned,
     startDeadlineMonitoring,
-    stopDeadlineMonitoring
-  } from '$lib/stores/contracts';
-  import { playChargeUp, playExecuteSound, unlockAudio } from '$lib/audio';
-  import { initAnalytics, trackContractKilled, trackContractsBurned } from '$lib/analytics';
+    stopDeadlineMonitoring,
+  } from "$lib/stores/contracts";
+  import { playChargeUp, playExecuteSound, unlockAudio } from "$lib/audio";
+  import { requestPermission, scheduleDailyBriefing } from "$lib/notifications";
+  import {
+    initAnalytics,
+    trackContractKilled,
+    trackContractsBurned,
+  } from "$lib/analytics";
 
   let { children } = $props();
+
+  // Notification Permission State
+  let showNotificationPrompt = $state(false);
 
   // Splash screen state
   let showSplash = $state(true);
@@ -35,38 +44,18 @@
   const SPLASH_MIN_DURATION = 1500; // Minimum splash display time (1.5s)
 
   // Initialize stores and run burn protocol on mount
-  onMount(async () => {
+  onMount(() => {
     const splashStart = Date.now();
-    
-    // Initialize analytics (privacy-first)
-    await initAnalytics();
-    
-    // Initialize app
-    await initializeStores();
-    const burnedCount = await runBurnProtocolOnStart();
-    
-    // Track burned contracts if any
-    if (burnedCount && burnedCount > 0) {
-      trackContractsBurned(burnedCount);
-    }
-    
-    // Start real-time deadline monitoring (checks every 30s)
-    startDeadlineMonitoring();
-    
-    // Ensure splash shows for minimum duration
-    const elapsed = Date.now() - splashStart;
-    const remainingTime = Math.max(0, SPLASH_MIN_DURATION - elapsed);
-    
-    setTimeout(() => {
-      // Start fade out
-      splashVisible = false;
-    }, remainingTime);
 
-    // Keyboard event listeners for spacebar trigger
+    // Keyboard event listeners
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only trigger on spacebar, not when typing in inputs
-      if (e.code !== 'Space') return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code !== "Space") return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
       if (isCharging) return;
 
       e.preventDefault();
@@ -74,19 +63,55 @@
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code !== 'Space') return;
+      if (e.code !== "Space") return;
       if (!isCharging) return;
 
       e.preventDefault();
       releaseCharge();
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    // Async initialization
+    (async () => {
+      // Initialize analytics (privacy-first)
+      await initAnalytics();
+
+      // Initialize app
+      await initializeStores();
+      const burnedCount = await runBurnProtocolOnStart();
+
+      // Track burned contracts if any
+      if (burnedCount && burnedCount > 0) {
+        trackContractsBurned(burnedCount);
+      }
+
+      // Start real-time deadline monitoring (checks every 30s)
+      startDeadlineMonitoring();
+
+      // Ensure splash shows for minimum duration
+      const elapsed = Date.now() - splashStart;
+      const remainingTime = Math.max(0, SPLASH_MIN_DURATION - elapsed);
+
+      setTimeout(() => {
+        // Start fade out
+        splashVisible = false;
+      }, remainingTime);
+    })();
+
+    // Check Notification Permission
+    if ("Notification" in window) {
+      if (Notification.permission === "default") {
+        showNotificationPrompt = true;
+      } else if (Notification.permission === "granted") {
+        scheduleDailyBriefing();
+      }
+    }
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
       stopDeadlineMonitoring();
       if (chargeAnimationFrame) {
         cancelAnimationFrame(chargeAnimationFrame);
@@ -125,14 +150,16 @@
       if (topContract) {
         playExecuteSound();
         killContractOptimistic(topContract.id);
-        
+
         // Track the kill via spacebar
-        const acceptedAt = topContract.acceptedAt ? new Date(topContract.acceptedAt).getTime() : null;
+        const acceptedAt = topContract.acceptedAt
+          ? new Date(topContract.acceptedAt).getTime()
+          : null;
         const timeToKill = acceptedAt ? Date.now() - acceptedAt : undefined;
         trackContractKilled({
-          method: 'spacebar',
+          method: "spacebar",
           time_to_kill_ms: timeToKill,
-          is_executive_order: topContract.priority === 'highTable'
+          is_executive_order: topContract.priority === "highTable",
         });
       }
     }
@@ -165,10 +192,13 @@
   />
 {/if}
 
+<!-- Morning Report (Daily Performance) -->
+<MorningReport />
+
 <!-- Spacebar Trigger Indicator -->
 <TriggerIndicator
   isVisible={isCharging}
-  chargeProgress={chargeProgress}
+  {chargeProgress}
   onKill={() => {
     const topContract = $todayActiveContracts[0];
     if (topContract) {
@@ -176,5 +206,21 @@
     }
   }}
 />
+
+<!-- Secure Comms Prompt -->
+{#if showNotificationPrompt}
+  <div class="fixed bottom-4 right-4 z-[110]">
+    <button
+      class="bg-neutral-900 border border-kl-gold/30 text-kl-gold text-[10px] uppercase tracking-widest px-3 py-2 hover:bg-kl-gold/10 transition-colors"
+      style="font-family: 'JetBrains Mono', monospace;"
+      onclick={async () => {
+        const granted = await requestPermission();
+        if (granted) showNotificationPrompt = false;
+      }}
+    >
+      [ ENABLE SECURE COMMS ]
+    </button>
+  </div>
+{/if}
 
 {@render children()}
