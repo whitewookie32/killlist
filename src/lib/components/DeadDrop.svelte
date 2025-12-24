@@ -23,15 +23,10 @@
     return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
   }
 
-  function scrambleText(target: string, progress: number): string {
+  function generateScrambledText(length: number): string {
     const result: string[] = [];
-    for (let i = 0; i < target.length; i++) {
-      // Characters before the progress point are revealed
-      if (i < target.length * progress) {
-        result.push(target[i]);
-      } else {
-        result.push(getRandomChar());
-      }
+    for (let i = 0; i < length; i++) {
+      result.push(getRandomChar());
     }
     return result.join('');
   }
@@ -40,31 +35,31 @@
     const title = inputValue.trim();
     if (!title || isScrambling) return;
 
+    // Phase 1: LOCK - Freeze the input
     isScrambling = true;
-    scrambledText = '';
+    scrambledText = title; // Start with original text visible in overlay
 
-    // Phase 1: Text scramble animation (300ms)
-    const scrambleDuration = 300;
-    const scrambleSteps = 15;
-    const stepDuration = scrambleDuration / scrambleSteps;
+    // Phase 2: SCRAMBLE - Rapidly change characters for 0.4s
+    const scrambleDuration = 400;
+    const scrambleInterval = 40; // Change every 40ms for rapid effect
+    const scrambleIterations = scrambleDuration / scrambleInterval;
 
-    for (let step = 0; step <= scrambleSteps; step++) {
-      const progress = step / scrambleSteps;
-      scrambledText = scrambleText(title, progress);
-      await new Promise((resolve) => setTimeout(resolve, stepDuration));
+    for (let i = 0; i < scrambleIterations; i++) {
+      scrambledText = generateScrambledText(title.length);
+      await new Promise((resolve) => setTimeout(resolve, scrambleInterval));
     }
 
-    // Phase 2: Show the flying item
+    // Phase 3: UPLOAD - Text fades out + slides up
     flyingItem = { text: title, visible: true };
     
-    // Clear input immediately
+    // Play sound immediately when upload animation starts
+    unlockAudio();
+    playUpload();
+
+    // Phase 4: CLEAR - Input clears and unlocks
     inputValue = '';
     scrambledText = '';
     isScrambling = false;
-
-    // Play sound
-    unlockAudio();
-    playUpload();
 
     // Add to store
     addContract(title);
@@ -73,7 +68,7 @@
     // Track analytics
     trackDeadDropUsed();
 
-    // Phase 3: Fly animation (handled by CSS), then hide
+    // Wait for fly animation to complete, then hide
     await new Promise((resolve) => setTimeout(resolve, 500));
     flyingItem = null;
   }
