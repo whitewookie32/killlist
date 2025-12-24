@@ -65,7 +65,7 @@
               
               {#if contract.priority === 'highTable'}
                 <span class="text-xs text-kl-crimson/50 uppercase tracking-wider" style="font-family: 'JetBrains Mono', monospace;">
-                  High Table
+                  EXECUTIVE ORDER
                 </span>
               {/if}
             </div>

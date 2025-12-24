@@ -119,7 +119,7 @@
         type="text"
         bind:value={inputValue}
         onkeydown={handleKeyDown}
-        placeholder="Add to Registry..."
+        placeholder="Input Objective..."
         disabled={isScrambling}
         class="flex-1 bg-transparent px-3 py-3 text-white text-sm placeholder:text-neutral-600
           focus:outline-none disabled:opacity-50"

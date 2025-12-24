@@ -88,7 +88,7 @@
     class="font-body text-xl tracking-widest mb-16 transition-opacity duration-300"
     style="color: rgba(212, 175, 55, {0.6 + holdProgress * 0.4}); font-family: 'JetBrains Mono', monospace;"
   >
-    Serve the High Table.
+  THE ORDER.
   </h1>
 
   <!-- Fingerprint Scanner -->

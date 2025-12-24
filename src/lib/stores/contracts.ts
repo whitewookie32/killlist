@@ -159,17 +159,17 @@ export async function cleanHouse(): Promise<void> {
  * Add a new contract to the Registry (backlog) - Optimistic UI pattern
  * Contracts start in 'registry' status with no targetDate.
  * The 24h burn timer only starts when accepted.
+ * Deadline is always 23:59 (end of day) - user doesn't choose.
  */
 export function addContract(
   title: string,
-  terminusTime: string = '23:59',
   priority: 'normal' | 'highTable' = 'normal'
 ): Contract {
   const newContract: Contract = {
     id: generateId(),
     title,
     // No targetDate - will be set when accepted
-    terminusTime,
+    // terminusTime is always 23:59 - set on acceptance
     priority,
     status: 'registry', // Start in backlog
     createdAt: new Date().toISOString()
@@ -190,18 +190,19 @@ export function addContract(
 
 /**
  * Accept a contract from the Registry - Optimistic UI pattern
- * Sets status to 'active' and targetDate to today.
- * The 24h burn timer starts from this moment.
+ * Sets status to 'active', targetDate to today, and terminusTime to 23:59.
+ * The deadline is always tonight at 23:59:59 - user doesn't choose.
  */
 export function acceptContractOptimistic(id: string): void {
   const today = getClientTodayISODate();
   const acceptedAt = new Date().toISOString();
+  const terminusTime = '23:59'; // Always end of day
 
   // INSTANT: Update store immediately
   contracts.update((list) =>
     list.map((c) =>
       c.id === id
-        ? { ...c, status: 'active' as const, targetDate: today, acceptedAt }
+        ? { ...c, status: 'active' as const, targetDate: today, terminusTime, acceptedAt }
         : c
     )
   );
@@ -209,7 +210,8 @@ export function acceptContractOptimistic(id: string): void {
   // ASYNC: Persist to DB
   db.contracts.update(id, { 
     status: 'active', 
-    targetDate: today, 
+    targetDate: today,
+    terminusTime,
     acceptedAt 
   }).catch((err) => {
     console.error('Failed to accept contract:', err);

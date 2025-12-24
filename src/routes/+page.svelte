@@ -20,7 +20,6 @@
   let showOath = $state(true);
   let showCreateForm = $state(false);
   let newContractTitle = $state('');
-  let newContractTime = $state('23:59');
   let isHighTable = $state(false);
 
   // Check if onboarding is complete (returning user)
@@ -62,20 +61,17 @@
     // Creates in Registry - user must accept to start timer
     addContract(
       newContractTitle.trim(),
-      newContractTime || '23:59',
       isHighTable ? 'highTable' : 'normal'
     );
 
     // Reset form
     newContractTitle = '';
-    newContractTime = '23:59';
     isHighTable = false;
     showCreateForm = false;
   }
 
   function openCreateForm() {
     showCreateForm = true;
-    newContractTime = '23:59';
   }
 </script>
 
@@ -190,7 +186,7 @@
             </h3>
             
             <p class="text-xs text-kl-gold/50 mb-6">
-              Added to Registry • Accept to start 24h timer
+              Deadline: Tonight at 23:59 when accepted
             </p>
 
             <div class="space-y-5">
@@ -208,23 +204,10 @@
                 />
               </div>
 
-              <!-- Terminus Time -->
-              <div>
-                <label class="block text-xs text-kl-gold/50 mb-2 tracking-widest">
-                  TERMINUS TIME (when accepted)
-                </label>
-                <input
-                  type="time"
-                  bind:value={newContractTime}
-                  class="w-full bg-kl-black border border-kl-gold/20 p-4 text-white focus:border-kl-gold focus:outline-none"
-                  style="color-scheme: dark;"
-                />
-              </div>
-
-              <!-- High Table Order Toggle -->
+              <!-- EXECUTIVE ORDER Toggle -->
               <div class="flex items-center justify-between p-4 border transition-colors {isHighTable ? 'bg-kl-crimson/20 border-kl-crimson' : 'bg-kl-black border-kl-gold/20'}">
                 <span class="text-sm tracking-widest transition-colors {isHighTable ? 'text-kl-crimson' : 'text-kl-gold/70'}">
-                  HIGH TABLE ORDER
+                  EXECUTIVE ORDER
                 </span>
                 <button
                   type="button"
