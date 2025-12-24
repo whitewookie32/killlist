@@ -14,11 +14,17 @@ export type HapticPattern = number | number[];
  * Safely fails if navigator.vibrate is not supported
  */
 export function vibrate(pattern: HapticPattern): void {
-  if (typeof window === 'undefined' || !navigator.vibrate) return;
+  if (typeof window === 'undefined') return;
+
+  // Debug: Temporary check to see if function is called on mobile
+  // alert(`Vibrate called: ${JSON.stringify(pattern)}. Supported: ${!!navigator.vibrate}`);
+
+  if (!navigator.vibrate) return;
 
   try {
-    navigator.vibrate(pattern);
-  } catch {
-    // Silently fail if vibration not supported or blocked
+    const result = navigator.vibrate(pattern);
+    // console.log('Vibration result:', result);
+  } catch (e) {
+    // console.error('Vibration failed:', e);
   }
 }
