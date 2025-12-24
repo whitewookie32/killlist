@@ -32,6 +32,19 @@ export const morningReportBurned = writable<Contract[]>([]);
 
 // ===== Derived Stores =====
 
+// Registry contracts (backlog - no timer yet)
+export const registryContracts = derived(contracts, ($contracts) =>
+  $contracts
+    .filter((c) => c.status === 'registry')
+    .sort((a, b) => {
+      // Sort by creation date, newest first
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    })
+);
+
+// Registry count
+export const registryCount = derived(registryContracts, ($registry) => $registry.length);
+
 // Today's active contracts only
 export const todayActiveContracts = derived(
   [contracts, todayDate],
@@ -143,23 +156,22 @@ export async function cleanHouse(): Promise<void> {
 // ===== Optimistic Contract Operations =====
 
 /**
- * Add a new contract - Optimistic UI pattern
- * In hardcore mode, targetDate is always TODAY
+ * Add a new contract to the Registry (backlog) - Optimistic UI pattern
+ * Contracts start in 'registry' status with no targetDate.
+ * The 24h burn timer only starts when accepted.
  */
 export function addContract(
   title: string,
   terminusTime: string = '23:59',
   priority: 'normal' | 'highTable' = 'normal'
 ): Contract {
-  const today = getClientTodayISODate();
-  
   const newContract: Contract = {
     id: generateId(),
     title,
-    targetDate: today, // ALWAYS today in hardcore mode
+    // No targetDate - will be set when accepted
     terminusTime,
     priority,
-    status: 'active',
+    status: 'registry', // Start in backlog
     createdAt: new Date().toISOString()
   };
 
@@ -174,6 +186,42 @@ export function addContract(
   });
 
   return newContract;
+}
+
+/**
+ * Accept a contract from the Registry - Optimistic UI pattern
+ * Sets status to 'active' and targetDate to today.
+ * The 24h burn timer starts from this moment.
+ */
+export function acceptContractOptimistic(id: string): void {
+  const today = getClientTodayISODate();
+  const acceptedAt = new Date().toISOString();
+
+  // INSTANT: Update store immediately
+  contracts.update((list) =>
+    list.map((c) =>
+      c.id === id
+        ? { ...c, status: 'active' as const, targetDate: today, acceptedAt }
+        : c
+    )
+  );
+
+  // ASYNC: Persist to DB
+  db.contracts.update(id, { 
+    status: 'active', 
+    targetDate: today, 
+    acceptedAt 
+  }).catch((err) => {
+    console.error('Failed to accept contract:', err);
+    // Rollback on failure
+    contracts.update((list) =>
+      list.map((c) =>
+        c.id === id
+          ? { ...c, status: 'registry' as const, targetDate: undefined, acceptedAt: undefined }
+          : c
+      )
+    );
+  });
 }
 
 /**
@@ -248,8 +296,12 @@ let deadlineCheckInterval: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Check if a contract has passed its deadline
+ * Registry contracts (no targetDate) are never considered passed.
  */
 function isDeadlinePassed(contract: Contract): boolean {
+  // Registry contracts have no targetDate - they can't be overdue
+  if (!contract.targetDate) return false;
+  
   const now = new Date();
   const today = getClientTodayISODate();
   

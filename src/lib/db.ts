@@ -13,17 +13,18 @@ export function getClientTodayISODate(d = new Date()): string {
 
 // ===== Contract Types =====
 export type Priority = 'normal' | 'highTable';
-export type ContractStatus = 'active' | 'killed' | 'burned';
+export type ContractStatus = 'registry' | 'active' | 'killed' | 'burned';
 
 export interface Contract {
   id: string;
   title: string;
-  targetDate: string; // YYYY-MM-DD (local calendar day - the day this task belongs to)
+  targetDate?: string; // YYYY-MM-DD (local calendar day) - null/undefined for registry contracts
   terminusTime?: string; // HH:MM (optional time within the day)
   priority: Priority;
   status: ContractStatus;
   createdAt: string;
   killedAt?: string; // When the task was completed/killed
+  acceptedAt?: string; // When the contract was accepted from registry
 }
 
 export interface AppSettings {
@@ -109,6 +110,15 @@ export async function getDb() {
             delete c.completedAt;
           });
         });
+        
+        // Version 3: Registry - add 'registry' status for backlog items
+        // Registry contracts have no targetDate until accepted
+        this.version(3).stores({
+          contracts: 'id, targetDate, status, createdAt, [targetDate+status]',
+          settings: 'id'
+        });
+        // No data migration needed - existing contracts remain as-is
+        // New contracts will be created with status: 'registry'
       }
     }
     
@@ -153,20 +163,24 @@ export async function incrementVault(): Promise<number> {
 }
 
 // ===== Contract Operations =====
+
+/**
+ * Create a new contract in the Registry (backlog).
+ * Contracts start with status: 'registry' and no targetDate.
+ * The 24h burn timer only starts when the contract is accepted.
+ */
 export async function createContract(
   title: string,
   terminusTime: string = '23:59',
   priority: Priority = 'normal'
 ): Promise<Contract> {
-  const today = getClientTodayISODate();
-  
   const contract: Contract = {
     id: generateId(),
     title,
-    targetDate: today, // Always today - hardcore mode
+    // No targetDate - will be set when accepted
     terminusTime,
     priority,
-    status: 'active',
+    status: 'registry', // Start in backlog
     createdAt: new Date().toISOString()
   };
   
@@ -176,6 +190,37 @@ export async function createContract(
   }
   
   return contract;
+}
+
+/**
+ * Accept a contract from the Registry.
+ * Sets status to 'active' and targetDate to today.
+ * The 24h burn timer starts from this moment.
+ */
+export async function acceptContract(id: string): Promise<void> {
+  if (!browser) return;
+  
+  const today = getClientTodayISODate();
+  const db = await getDb();
+  
+  await db.contracts.update(id, {
+    status: 'active',
+    targetDate: today,
+    acceptedAt: new Date().toISOString()
+  });
+}
+
+/**
+ * Get all contracts in the Registry (backlog).
+ */
+export async function getRegistryContracts(): Promise<Contract[]> {
+  if (!browser) return [];
+  
+  const db = await getDb();
+  return db.contracts
+    .where('status')
+    .equals('registry')
+    .toArray();
 }
 
 export async function getTodayActiveContracts(): Promise<Contract[]> {

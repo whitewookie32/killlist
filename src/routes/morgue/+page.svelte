@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
   import MorgueHeatmap from '$lib/components/MorgueHeatmap.svelte';
+  import BottomNav from '$lib/components/BottomNav.svelte';
   import { getMorgueStats, groupByMonth, type MorgueStats, type MonthGroup } from '$lib/morgue';
 
   // State
@@ -47,29 +47,16 @@
   <title>THE MORGUE | KILL LIST</title>
 </svelte:head>
 
-<div class="min-h-screen bg-kl-black flex flex-col" style="font-family: 'JetBrains Mono', monospace;">
+<div class="min-h-screen bg-kl-black flex flex-col pb-20" style="font-family: 'JetBrains Mono', monospace;">
   <!-- Header -->
-  <header class="flex items-center justify-between px-6 py-5 border-b border-kl-gold/10">
-    <button
-      type="button"
-      class="flex items-center gap-3 text-kl-gold hover:text-kl-gold/80 transition-colors"
-      onclick={() => goto('/')}
-    >
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19l-7-7 7-7" />
-      </svg>
-      <span class="text-sm tracking-widest">BACK</span>
-    </button>
-
+  <header class="flex items-center justify-center px-6 py-5 border-b border-kl-gold/10">
     <h1 class="text-xl tracking-widest text-kl-gold">
       THE MORGUE
     </h1>
-
-    <div class="w-16"></div>
   </header>
 
   <!-- Content -->
-  <main class="flex-1 px-6 pb-24">
+  <main class="flex-1 px-6">
     {#if isLoading}
       <!-- Loading skeleton -->
       <div class="space-y-6 mt-8">
@@ -202,4 +189,7 @@
     {/if}
   </main>
 </div>
+
+<!-- Bottom Navigation -->
+<BottomNav />
 

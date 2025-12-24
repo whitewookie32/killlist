@@ -27,15 +27,16 @@ export {};
 
 declare module "$app/types" {
 	export interface AppTypes {
-		RouteId(): "/" | "/morgue";
+		RouteId(): "/" | "/morgue" | "/registry";
 		RouteParams(): {
 			
 		};
 		LayoutParams(): {
 			"/": Record<string, never>;
-			"/morgue": Record<string, never>
+			"/morgue": Record<string, never>;
+			"/registry": Record<string, never>
 		};
-		Pathname(): "/" | "/morgue" | "/morgue/";
+		Pathname(): "/" | "/morgue" | "/morgue/" | "/registry" | "/registry/";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): "/favicon.svg" | "/icons/apple-touch-icon.png" | "/icons/icon-192.png" | "/icons/icon-512.png" | "/manifest.json" | string & {};
 	}

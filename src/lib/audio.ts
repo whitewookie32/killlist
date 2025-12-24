@@ -187,6 +187,67 @@ export function playKillConfirm(): void {
   setTimeout(() => playTone(2000, 0.15, 'sine', 0.2), 100);
 }
 
+/**
+ * Play accept contract sound - weapon cocking / lock and load
+ * Distinctive metallic clack for accepting a contract from the Registry
+ */
+export function playAcceptContract(): void {
+  const ctx = getAudioContext();
+  if (!ctx || ctx.state === 'suspended') return;
+
+  try {
+    // First click - slide back
+    playTone(800, 0.03, 'square', 0.4);
+    
+    // Metallic slide
+    setTimeout(() => {
+      const bufferSize = ctx.sampleRate * 0.08;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < bufferSize; i++) {
+        const progress = i / bufferSize;
+        const decay = 1 - progress;
+        data[i] = (Math.random() * 2 - 1) * decay * 0.3;
+      }
+
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = buffer;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(2000, ctx.currentTime);
+      filter.Q.setValueAtTime(5, ctx.currentTime);
+
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+
+      noiseSource.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      noiseSource.start();
+      noiseSource.stop(ctx.currentTime + 0.08);
+    }, 30);
+
+    // Second click - lock in place
+    setTimeout(() => {
+      playTone(1200, 0.02, 'square', 0.5);
+      playTone(600, 0.05, 'sine', 0.3);
+    }, 100);
+
+    // Final thunk
+    setTimeout(() => {
+      playTone(100, 0.1, 'sine', 0.4);
+    }, 130);
+  } catch {
+    // Fallback to simple tones
+    playTone(800, 0.05, 'square', 0.3);
+    setTimeout(() => playTone(1200, 0.05, 'square', 0.3), 80);
+  }
+}
+
 // ===== Ambient Drone (placeholder) =====
 let droneOscillator: OscillatorNode | null = null;
 let droneGain: GainNode | null = null;
