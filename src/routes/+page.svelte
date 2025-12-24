@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
+  import { browser } from '$app/environment';
   import OathScreen from '$lib/components/OathScreen.svelte';
   import ContractCard from '$lib/components/ContractCard.svelte';
   import BottomNav from '$lib/components/BottomNav.svelte';
@@ -21,16 +23,32 @@
   let newContractTime = $state('23:59');
   let isHighTable = $state(false);
 
-  // Check if onboarding is complete
+  // Check if onboarding is complete (returning user)
   $effect(() => {
     if ($settings.onboardingComplete) {
       showOath = false;
     }
   });
 
+  // Check localStorage for oath_signed (quick check for returning users)
+  $effect(() => {
+    if (browser && localStorage.getItem('oath_signed') === 'true') {
+      showOath = false;
+    }
+  });
+
   function handleOathComplete() {
+    // Mark oath as signed in localStorage (quick gatekeeper check)
+    if (browser) {
+      localStorage.setItem('oath_signed', 'true');
+    }
+    
+    // Complete onboarding in Dexie (source of truth)
     completeOnboardingOptimistic();
     showOath = false;
+    
+    // First-time users go to Registry to start adding contracts
+    goto('/registry');
   }
 
   function handleContractKill(id: string) {

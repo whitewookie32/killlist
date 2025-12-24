@@ -4,6 +4,7 @@
   import { browser } from '$app/environment';
   import TriggerIndicator from '$lib/components/TriggerIndicator.svelte';
   import MissionReportModal from '$lib/components/MissionReportModal.svelte';
+  import SplashScreen from '$lib/components/SplashScreen.svelte';
   import {
     initializeStores,
     todayActiveContracts,
@@ -18,6 +19,11 @@
 
   let { children } = $props();
 
+  // Splash screen state
+  let showSplash = $state(true);
+  let splashVisible = $state(true);
+  let appReady = $state(false);
+
   // Spacebar trigger state
   let isCharging = $state(false);
   let chargeProgress = $state(0);
@@ -25,14 +31,27 @@
   let chargeAnimationFrame: number | null = null;
 
   const CHARGE_DURATION = 800; // ms to fully charge
+  const SPLASH_MIN_DURATION = 1500; // Minimum splash display time (1.5s)
 
   // Initialize stores and run burn protocol on mount
   onMount(async () => {
+    const splashStart = Date.now();
+    
+    // Initialize app
     await initializeStores();
     await runBurnProtocolOnStart();
     
     // Start real-time deadline monitoring (checks every 30s)
     startDeadlineMonitoring();
+    
+    // Ensure splash shows for minimum duration
+    const elapsed = Date.now() - splashStart;
+    const remainingTime = Math.max(0, SPLASH_MIN_DURATION - elapsed);
+    
+    setTimeout(() => {
+      // Start fade out
+      splashVisible = false;
+    }, remainingTime);
 
     // Keyboard event listeners for spacebar trigger
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -107,6 +126,17 @@
 <svelte:head>
   <meta name="theme-color" content="#DC2626" />
 </svelte:head>
+
+<!-- Splash Screen (Gatekeeper) -->
+{#if showSplash}
+  <SplashScreen
+    visible={splashVisible}
+    onFadeComplete={() => {
+      showSplash = false;
+      appReady = true;
+    }}
+  />
+{/if}
 
 <!-- Mission Report Modal (Burn Protocol) -->
 {#if $morningReportOpen}
