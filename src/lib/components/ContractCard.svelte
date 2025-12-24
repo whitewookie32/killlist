@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Contract } from '$lib/db';
   import { playExecute } from '$lib/audio';
-  import { impact } from '$lib/haptics';
   import { trackContractKilled, trackContractAborted } from '$lib/analytics';
 
   // Props
@@ -66,7 +65,6 @@
   function triggerCompletion() {
     isCompleting = true;
     playExecute();
-    impact();
 
     // Show KILLED stamp
     showKilledStamp = true;
