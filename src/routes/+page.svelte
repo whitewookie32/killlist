@@ -11,6 +11,7 @@
     isLoading,
     addContract,
     killContractOptimistic,
+    abortContractOptimistic,
     completeOnboardingOptimistic,
     openCount,
     registryCount
@@ -52,6 +53,10 @@
 
   function handleContractKill(id: string) {
     killContractOptimistic(id);
+  }
+
+  function handleContractAbort(id: string) {
+    abortContractOptimistic(id);
   }
 
   function handleCreateContract(e: Event) {
@@ -131,29 +136,31 @@
         {/each}
       </div>
     {:else if $todayActiveContracts.length === 0}
-      <!-- Empty state -->
-      <div class="flex flex-col items-center justify-center pt-16">
-        <p class="text-kl-gold/40 text-sm tracking-widest text-center mb-4">
-          NO ACTIVE CONTRACTS
+      <!-- Empty state - "You are idle. That is dangerous." -->
+      <div class="flex flex-col items-center justify-center pt-20">
+        <div class="text-neutral-700 text-6xl mb-6">⊘</div>
+        <p class="text-kl-gold text-sm tracking-widest text-center mb-2 uppercase">
+          No Active Contracts
         </p>
-        {#if $registryCount > 0}
-          <a
-            href="/registry"
-            class="text-kl-gold/60 text-xs tracking-wider border border-kl-gold/20 px-4 py-2 hover:border-kl-gold/40 transition-colors"
-          >
-            {$registryCount} PENDING IN REGISTRY →
-          </a>
-        {:else}
-          <p class="text-kl-gold/30 text-xs tracking-wider text-center">
-            Add contracts to the Registry
-          </p>
-        {/if}
+        <p class="text-neutral-600 text-xs tracking-wider text-center mb-8 max-w-xs">
+          You are idle. That is dangerous.
+        </p>
+        <a
+          href="/registry"
+          class="px-6 py-3 bg-kl-gold/10 border border-kl-gold/40 text-kl-gold text-sm tracking-widest hover:bg-kl-gold/20 transition-colors uppercase"
+          style="font-family: 'JetBrains Mono', monospace;"
+        >
+          Access Registry
+          {#if $registryCount > 0}
+            <span class="ml-2 text-kl-gold/60">({$registryCount})</span>
+          {/if}
+        </a>
       </div>
     {:else}
       <!-- Contract list -->
       <div class="space-y-3">
         {#each $todayActiveContracts as contract (contract.id)}
-          <ContractCard {contract} onComplete={handleContractKill} />
+          <ContractCard {contract} onComplete={handleContractKill} onAbort={handleContractAbort} />
         {/each}
       </div>
     {/if}
@@ -198,7 +205,7 @@
                 <input
                   type="text"
                   bind:value={newContractTitle}
-                  placeholder="Enter Target Name..."
+                  placeholder="Input Objective..."
                   class="w-full bg-kl-black border border-kl-gold/20 p-4 text-white placeholder:text-kl-gold/30 focus:border-kl-gold focus:outline-none"
                   autofocus
                 />

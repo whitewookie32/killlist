@@ -249,7 +249,7 @@
                 <input
                   type="text"
                   bind:value={newContractTitle}
-                  placeholder="Enter Target Name..."
+                  placeholder="Input Objective..."
                   class="w-full bg-neutral-800 border border-neutral-700 p-4 text-white placeholder:text-neutral-600 focus:border-neutral-500 focus:outline-none"
                   autofocus
                 />

@@ -1,19 +1,20 @@
 <script lang="ts">
   import type { Contract } from '$lib/db';
-  import { playExecute, playCoin } from '$lib/audio';
+  import { playExecute } from '$lib/audio';
 
   // Props
   interface Props {
     contract: Contract;
     onComplete: (id: string) => void;
+    onAbort?: (id: string) => void;
   }
 
-  let { contract, onComplete }: Props = $props();
+  let { contract, onComplete, onAbort }: Props = $props();
 
   // State
   let offsetX = $state(0);
   let isCompleting = $state(false);
-  let showCoin = $state(false);
+  let showKilledStamp = $state(false);
   let isDragging = $state(false);
 
   // Touch tracking refs
@@ -24,8 +25,7 @@
   const VELOCITY_THRESHOLD = 0.5; // px/ms
 
   // Derived
-  const isHighTable = $derived(contract.priority === 'highTable');
-  const terminusDisplay = $derived(contract.terminusTime || '23:59');
+  const isExecutiveOrder = $derived(contract.priority === 'highTable');
 
   // Touch handlers
   function handleTouchStart(e: TouchEvent) {
@@ -65,107 +65,111 @@
     isCompleting = true;
     playExecute();
 
-    // Show slash animation briefly
-    setTimeout(() => {
-      showCoin = true;
-      playCoin();
+    // Show KILLED stamp
+    showKilledStamp = true;
 
-      // Trigger completion after coin animation
+    // Slide out and trigger completion
+    setTimeout(() => {
+      offsetX = 400; // Slide off screen
       setTimeout(() => {
         onComplete(contract.id);
-      }, 600);
-    }, 200);
+      }, 300);
+    }, 600);
   }
 
-  // Compute lethal intent opacity (red overlay when swiping past 50%)
-  const lethalOpacity = $derived(Math.min(1, Math.max(0, (offsetX - SWIPE_THRESHOLD * 0.5) / (SWIPE_THRESHOLD * 0.5))));
+  function handleAbort() {
+    onAbort?.(contract.id);
+  }
+
+  // Compute swipe progress (0-1)
+  const swipeProgress = $derived(Math.min(1, offsetX / SWIPE_THRESHOLD));
 </script>
 
 <div class="relative overflow-hidden" style="touch-action: pan-y;">
-  <!-- Swipe reveal background -->
+  <!-- Swipe reveal background - KILLED stamp -->
   <div
-    class="absolute inset-0 flex items-center pl-4 transition-colors duration-200"
-    style="background: linear-gradient(to right, rgba(212, 175, 55, {0.2 * (1 - lethalOpacity)}), rgba(212, 175, 55, {0.05 * (1 - lethalOpacity)})), linear-gradient(to right, rgba(220, 38, 38, {0.4 * lethalOpacity}), rgba(220, 38, 38, {0.2 * lethalOpacity}));"
+    class="absolute inset-0 flex items-center justify-center transition-colors duration-200"
+    style="background: linear-gradient(to right, rgba(34, 197, 94, {0.3 * swipeProgress}), rgba(212, 175, 55, {0.2 * swipeProgress}));"
   >
-    <svg viewBox="0 0 24 24" class="w-6 h-6" style="color: {lethalOpacity > 0.5 ? '#DC2626' : '#D4AF37'};" fill="currentColor">
-      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-    </svg>
+    {#if swipeProgress > 0.3}
+      <div
+        class="text-green-500 text-xl font-bold tracking-widest uppercase transform -rotate-12 border-2 border-green-500 px-4 py-1"
+        style="opacity: {swipeProgress}; font-family: 'JetBrains Mono', monospace;"
+      >
+        KILLED
+      </div>
+    {/if}
   </div>
 
   <!-- Card - GPU Accelerated -->
   <div
-    class="relative bg-kl-gunmetal border transition-[border-color,box-shadow,opacity] duration-200 cursor-grab active:cursor-grabbing gpu-accelerated {isHighTable ? 'border-kl-crimson' : 'border-kl-gold/20 hover:border-kl-gold/40'} {isCompleting ? 'opacity-50' : ''}"
-    style="transform: translate3d({offsetX}px, 0, 0); will-change: transform; {isDragging ? '' : 'transition: transform 0.3s ease-out;'} {isHighTable ? 'box-shadow: 0 0 10px rgba(153, 0, 0, 0.2);' : ''}"
+    class="relative bg-neutral-800 transition-[opacity] duration-200 cursor-grab active:cursor-grabbing gpu-accelerated
+      {isExecutiveOrder ? 'border-l-4 border-l-kl-gold border-y border-r border-neutral-700' : 'border border-neutral-700'}
+      {isCompleting ? 'opacity-50' : ''}"
+    style="transform: translate3d({offsetX}px, 0, 0); will-change: transform; {isDragging ? '' : 'transition: transform 0.3s ease-out;'}"
     ontouchstart={handleTouchStart}
     ontouchmove={handleTouchMove}
     ontouchend={handleTouchEnd}
     ontouchcancel={() => { isDragging = false; offsetX = 0; }}
   >
-    <div class="p-4 flex items-center gap-4">
-      <!-- Status icon -->
-      <div
-        class="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center border {isHighTable ? 'bg-kl-crimson/20 border-kl-crimson' : 'bg-kl-gold/10 border-kl-gold/30'}"
-      >
-        <!-- Coin icon -->
-        <svg
-          viewBox="0 0 24 24"
-          class="w-5 h-5 {isHighTable ? 'text-kl-crimson' : 'text-kl-gold'}"
-          fill="currentColor"
-        >
-          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5" />
-          <path d="M12 6v12M6 12h12" stroke-width="1.5" stroke="currentColor" />
-        </svg>
-      </div>
-
-      <!-- Content -->
-      <div class="flex-1 min-w-0">
-        <div class="relative">
+    <div class="p-4">
+      <!-- Header row: Title + Priority badge -->
+      <div class="flex items-start justify-between gap-3 mb-2">
+        <div class="flex-1 min-w-0 relative">
           <h3
-            class="text-base font-medium truncate {isHighTable ? 'text-kl-crimson' : 'text-white'}"
+            class="text-base font-medium truncate {isExecutiveOrder ? 'text-kl-gold' : 'text-white'}"
             class:line-through={isCompleting}
             class:opacity-50={isCompleting}
             style="font-family: 'JetBrains Mono', monospace;"
           >
             {contract.title}
           </h3>
-
-          <!-- Slash animation overlay -->
-          {#if isCompleting && !showCoin}
-            <div class="absolute top-1/2 left-0 h-0.5 bg-kl-gold animate-slash"></div>
-          {/if}
         </div>
 
-        <!-- Terminus Time -->
-        <p
-          class="text-sm mt-1 {isHighTable ? 'text-kl-crimson/70' : 'text-kl-gold-dim'}"
-          style="font-family: 'JetBrains Mono', monospace;"
-        >
-          TERMINUS: {terminusDisplay}
-        </p>
+        <!-- Priority badge -->
+        {#if isExecutiveOrder}
+          <div
+            class="flex-shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-kl-gold/10 border border-kl-gold/30 text-kl-gold"
+            style="font-family: 'JetBrains Mono', monospace;"
+          >
+            PRIORITY
+          </div>
+        {/if}
       </div>
 
-      <!-- Priority badge -->
-      {#if isHighTable}
-        <div
-          class="px-2 py-1 text-xs font-semibold uppercase tracking-wider bg-kl-crimson/10"
-          style="color: var(--color-kl-crimson); font-family: 'JetBrains Mono', monospace;"
+      <!-- Footer row: Deadline + Abort -->
+      <div class="flex items-center justify-between">
+        <p
+          class="text-xs text-neutral-500"
+          style="font-family: 'JetBrains Mono', monospace;"
         >
-          High Table
-        </div>
-      {/if}
-    </div>
-  </div>
+          DEADLINE: 23:59
+        </p>
 
-  <!-- Flying coin animation -->
-  {#if showCoin}
-    <div
-      class="absolute left-1/2 top-1/2 w-10 h-10 rounded-full flex items-center justify-center animate-coin-fly pointer-events-none z-50"
-      style="background: linear-gradient(to bottom right, var(--color-kl-gold), var(--color-kl-gold-dim));"
-    >
-      <svg viewBox="0 0 24 24" class="w-6 h-6 text-kl-black" fill="currentColor">
-        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5" />
-        <path d="M12 6v12M6 12h12" stroke-width="1.5" stroke="currentColor" />
-      </svg>
+        <!-- Abort button -->
+        {#if onAbort}
+          <button
+            type="button"
+            class="text-[10px] text-neutral-600 hover:text-kl-crimson tracking-widest transition-colors"
+            style="font-family: 'JetBrains Mono', monospace;"
+            onclick={handleAbort}
+          >
+            [ABORT MISSION]
+          </button>
+        {/if}
+      </div>
     </div>
-  {/if}
+
+    <!-- KILLED stamp overlay -->
+    {#if showKilledStamp}
+      <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div
+          class="text-green-500 text-2xl font-bold tracking-widest uppercase transform -rotate-12 border-4 border-green-500 px-6 py-2 bg-black/50"
+          style="font-family: 'JetBrains Mono', monospace;"
+        >
+          KILLED
+        </div>
+      </div>
+    {/if}
+  </div>
 </div>

@@ -256,6 +256,31 @@ export function killContractOptimistic(id: string): void {
 }
 
 /**
+ * Abort a contract - Move it back to Registry
+ * The contract returns to backlog, deadline is cleared.
+ */
+export function abortContractOptimistic(id: string): void {
+  // INSTANT: Update store immediately
+  contracts.update((list) =>
+    list.map((c) =>
+      c.id === id
+        ? { ...c, status: 'registry' as const, targetDate: undefined, terminusTime: undefined, acceptedAt: undefined }
+        : c
+    )
+  );
+
+  // ASYNC: Persist to DB
+  db.contracts.update(id, { 
+    status: 'registry', 
+    targetDate: undefined, 
+    terminusTime: undefined,
+    acceptedAt: undefined 
+  }).catch((err) => {
+    console.error('Failed to abort contract:', err);
+  });
+}
+
+/**
  * Delete a contract - Optimistic UI pattern
  */
 export function deleteContractOptimistic(id: string): void {
