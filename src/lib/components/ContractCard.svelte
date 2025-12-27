@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { onMount } from 'svelte'; // Add onMount
   import { slide } from 'svelte/transition';
   import type { Contract } from '$lib/db';
   import { playExecuteSound, unlockAudio } from '$lib/audio';
@@ -28,6 +29,26 @@
   const SWIPE_THRESHOLD = 120; // px to trigger completion
   const VELOCITY_THRESHOLD = 0.5; // px/ms
   const TAP_TOLERANCE = 10; // px - movement less than this is considered a tap
+  const TEASE_AMOUNT = 15; // px to slide for tease
+
+  // Tease Animation Check
+  onMount(() => {
+    // Check if we've already teased in this session
+    const hasTeased = sessionStorage.getItem('swiped_tease_shown');
+    
+    if (!hasTeased) {
+      // Small delay to ensure render
+      setTimeout(() => {
+        // Quick subtle slide right and back
+        offsetX = TEASE_AMOUNT;
+        
+        setTimeout(() => {
+          offsetX = 0;
+          sessionStorage.setItem('swiped_tease_shown', 'true');
+        }, 300); // Duration of slide out
+      }, 500); // Delay before starting
+    }
+  });
 
   // Derived
   const isExecutiveOrder = $derived(contract.priority === 'highTable');
@@ -229,6 +250,14 @@
           </button>
         {/if}
       </div>
+    </div>
+
+    <!-- Grip Handle (Affordance) -->
+    <div 
+      class="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center pointer-events-none opacity-50"
+      class:hidden={isCompleting || isExecutiveOrder} 
+    >
+      <span class="text-neutral-600 text-lg font-light select-none animate-pulse">»</span>
     </div>
 
     <!-- KILLED stamp overlay -->

@@ -144,7 +144,7 @@
   <!-- Section Header - Today's Contracts -->
   <div class="flex items-center justify-between px-6 py-4">
     <span class="text-sm tracking-widest text-kl-gold/70">
-      TODAY'S CONTRACTS
+      TODAY'S CONTRACTS <span class="text-xs text-neutral-600 ml-2 animate-pulse">[SWIPE TO EXECUTE]</span>
     </span>
     <span class="text-sm tracking-wider text-kl-gold">
       {$openCount} OPEN
