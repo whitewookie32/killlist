@@ -20,7 +20,7 @@ let isInitialized = false;
  */
 export async function initAnalytics(): Promise<void> {
   if (!browser || isInitialized) return;
-  
+
   // Skip if no API key configured
   if (!PUBLIC_POSTHOG_KEY) {
     console.warn('[Analytics] PostHog key not configured. Skipping initialization.');
@@ -29,37 +29,37 @@ export async function initAnalytics(): Promise<void> {
 
   try {
     const posthog = (await import('posthog-js')).default;
-    
+
     posthog.init(PUBLIC_POSTHOG_KEY, {
       api_host: PUBLIC_POSTHOG_HOST || 'https://app.posthog.com',
-      
+
       // Privacy Guard: Mask everything in session recordings
       session_recording: {
         maskAllInputs: true,
         maskTextSelector: '*', // Mask all text content
       },
-      
+
       // Additional privacy settings
       mask_all_text: true,
       mask_all_element_attributes: true,
-      
+
       // Disable automatic page views (we control when to track)
-      capture_pageview: false,
-      
+      capture_pageview: true,
+
       // Respect Do Not Track
       respect_dnt: true,
-      
+
       // Disable personal identifiable info capture
       disable_session_recording: false, // Enable recordings but with masking
-      
+
       // Bootstrap for faster initial load
       bootstrap: {
         distinctID: undefined, // Anonymous by default
       },
-      
+
       // Persistence
       persistence: 'localStorage',
-      
+
       // Load lazily
       loaded: (ph) => {
         // Identify as anonymous user
@@ -110,7 +110,7 @@ export function trackContractAccepted(): void {
  * Track contract killed (completed)
  * @param timeToKillMs - Time from creation/acceptance to completion in milliseconds
  */
-export function trackContractKilled(properties?: { 
+export function trackContractKilled(properties?: {
   time_to_kill_ms?: number;
   is_executive_order?: boolean;
   method?: 'swipe' | 'spacebar';
