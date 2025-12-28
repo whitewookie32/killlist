@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from "$app/stores";
+  import { goto } from "$app/navigation";
   import { slide } from "svelte/transition";
   import BottomNav from "$lib/components/BottomNav.svelte";
   import DeadDrop from "$lib/components/DeadDrop.svelte";
@@ -10,10 +11,18 @@
     addContract,
     acceptContractOptimistic,
     deleteContractOptimistic,
+    settings,
   } from "$lib/stores/contracts";
   import { playLoad, unlockAudio } from "$lib/audio";
   import { vibrate, HapticPatterns } from "$lib/haptic";
   import { trackContractAccepted, trackDossierFiled } from "$lib/analytics";
+
+  // Redirect if not onboarded
+  $effect(() => {
+    if (!$isLoading && !$settings.onboardingComplete) {
+      goto("/");
+    }
+  });
 
   // UI State
   let showCreateForm = $state(false);
