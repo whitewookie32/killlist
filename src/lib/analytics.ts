@@ -112,6 +112,7 @@ export function trackContractAccepted(): void {
  */
 export function trackContractKilled(properties?: {
   time_to_kill_ms?: number;
+  lifespan_minutes?: number; // Total time from creation to kill
   is_executive_order?: boolean;
   method?: 'swipe' | 'spacebar';
 }): void {

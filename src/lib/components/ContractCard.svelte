@@ -1,9 +1,9 @@
 <script lang="ts">
-    import { onMount } from 'svelte'; // Add onMount
-  import { slide } from 'svelte/transition';
-  import type { Contract } from '$lib/db';
-  import { playExecuteSound, unlockAudio } from '$lib/audio';
-  import { trackContractKilled, trackContractAborted } from '$lib/analytics';
+  import { onMount } from "svelte"; // Add onMount
+  import { slide } from "svelte/transition";
+  import type { Contract } from "$lib/db";
+  import { playExecuteSound, unlockAudio } from "$lib/audio";
+  import { trackContractKilled, trackContractAborted } from "$lib/analytics";
 
   // Props
   interface Props {
@@ -34,24 +34,24 @@
   // Tease Animation Check
   onMount(() => {
     // Check if we've already teased in this session
-    const hasTeased = sessionStorage.getItem('swiped_tease_shown');
-    
+    const hasTeased = sessionStorage.getItem("swiped_tease_shown");
+
     if (!hasTeased) {
       // Small delay to ensure render
       setTimeout(() => {
         // Quick subtle slide right and back
         offsetX = TEASE_AMOUNT;
-        
+
         setTimeout(() => {
           offsetX = 0;
-          sessionStorage.setItem('swiped_tease_shown', 'true');
+          sessionStorage.setItem("swiped_tease_shown", "true");
         }, 300); // Duration of slide out
       }, 500); // Delay before starting
     }
   });
 
   // Derived
-  const isExecutiveOrder = $derived(contract.priority === 'highTable');
+  const isExecutiveOrder = $derived(contract.priority === "highTable");
 
   // Toggle details expansion
   function toggleDetails() {
@@ -75,7 +75,7 @@
     } else if (diffMinutes > 0) {
       return `Accepted ${diffMinutes}m ago`;
     } else {
-      return 'Accepted just now';
+      return "Accepted just now";
     }
   }
 
@@ -93,12 +93,12 @@
     if (!isDragging || isCompleting) return;
 
     const deltaX = e.touches[0].clientX - startX;
-    
+
     // Mark as swipe if movement exceeds tap tolerance
     if (Math.abs(deltaX) > TAP_TOLERANCE) {
       didSwipe = true;
     }
-    
+
     // Only allow swipe right
     offsetX = Math.max(0, deltaX);
   }
@@ -128,14 +128,22 @@
 
     // Show KILLED stamp
     showKilledStamp = true;
-    
+
     // Track the kill via swipe
-    const acceptedAt = contract.acceptedAt ? new Date(contract.acceptedAt).getTime() : null;
+    const acceptedAt = contract.acceptedAt
+      ? new Date(contract.acceptedAt).getTime()
+      : null;
     const timeToKill = acceptedAt ? Date.now() - acceptedAt : undefined;
+
+    // Calculate total lifespan (Creation -> Kill)
+    const createdAt = new Date(contract.createdAt).getTime();
+    const lifespanMinutes = (Date.now() - createdAt) / 60000;
+
     trackContractKilled({
-      method: 'swipe',
+      method: "swipe",
       time_to_kill_ms: timeToKill,
-      is_executive_order: contract.priority === 'highTable'
+      lifespan_minutes: lifespanMinutes,
+      is_executive_order: contract.priority === "highTable",
     });
 
     // Slide out and trigger completion
@@ -161,7 +169,8 @@
   <!-- Swipe reveal background - KILLED stamp -->
   <div
     class="absolute inset-0 flex items-center justify-center transition-colors duration-200"
-    style="background: linear-gradient(to right, rgba(34, 197, 94, {0.3 * swipeProgress}), rgba(212, 175, 55, {0.2 * swipeProgress}));"
+    style="background: linear-gradient(to right, rgba(34, 197, 94, {0.3 *
+      swipeProgress}), rgba(212, 175, 55, {0.2 * swipeProgress}));"
   >
     {#if swipeProgress > 0.3}
       <div
@@ -176,13 +185,20 @@
   <!-- Card - GPU Accelerated -->
   <div
     class="relative bg-neutral-800 transition-[opacity] duration-200 cursor-grab active:cursor-grabbing gpu-accelerated
-      {isExecutiveOrder ? 'border-l-4 border-l-kl-gold border-y border-r border-neutral-700' : 'border border-neutral-700'}
+      {isExecutiveOrder
+      ? 'border-l-4 border-l-kl-gold border-y border-r border-neutral-700'
+      : 'border border-neutral-700'}
       {isCompleting ? 'opacity-50' : ''}"
-    style="transform: translate3d({offsetX}px, 0, 0); will-change: transform; {isDragging ? '' : 'transition: transform 0.3s ease-out;'}"
+    style="transform: translate3d({offsetX}px, 0, 0); will-change: transform; {isDragging
+      ? ''
+      : 'transition: transform 0.3s ease-out;'}"
     ontouchstart={handleTouchStart}
     ontouchmove={handleTouchMove}
     ontouchend={handleTouchEnd}
-    ontouchcancel={() => { isDragging = false; offsetX = 0; }}
+    ontouchcancel={() => {
+      isDragging = false;
+      offsetX = 0;
+    }}
   >
     <div class="p-4">
       <!-- Header row: Title + Priority badge -->
@@ -193,7 +209,9 @@
           onclick={toggleDetails}
         >
           <h3
-            class="text-base font-medium transition-all {isExecutiveOrder ? 'text-kl-gold' : 'text-white'}
+            class="text-base font-medium transition-all {isExecutiveOrder
+              ? 'text-kl-gold'
+              : 'text-white'}
               {isExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'}"
             class:line-through={isCompleting}
             class:opacity-50={isCompleting}
@@ -253,16 +271,21 @@
     </div>
 
     <!-- Grip Handle (Affordance) -->
-    <div 
+    <div
       class="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center pointer-events-none opacity-50"
-      class:hidden={isCompleting || isExecutiveOrder} 
+      class:hidden={isCompleting || isExecutiveOrder}
     >
-      <span class="text-neutral-600 text-lg font-light select-none animate-pulse">»</span>
+      <span
+        class="text-neutral-600 text-lg font-light select-none animate-pulse"
+        >»</span
+      >
     </div>
 
     <!-- KILLED stamp overlay -->
     {#if showKilledStamp}
-      <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <div
+        class="absolute inset-0 flex items-center justify-center pointer-events-none"
+      >
         <div
           class="text-green-500 text-2xl font-bold tracking-widest uppercase transform -rotate-12 border-4 border-green-500 px-6 py-2 bg-black/50"
           style="font-family: 'JetBrains Mono', monospace;"

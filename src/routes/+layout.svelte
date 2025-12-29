@@ -159,9 +159,15 @@
           ? new Date(topContract.acceptedAt).getTime()
           : null;
         const timeToKill = acceptedAt ? Date.now() - acceptedAt : undefined;
+
+        // Calculate total lifespan (Creation -> Kill)
+        const createdAt = new Date(topContract.createdAt).getTime();
+        const lifespanMinutes = (Date.now() - createdAt) / 60000;
+
         trackContractKilled({
           method: "spacebar",
           time_to_kill_ms: timeToKill,
+          lifespan_minutes: lifespanMinutes,
           is_executive_order: topContract.priority === "highTable",
         });
       }
