@@ -1,5 +1,6 @@
 <script lang="ts">
   import "../app.css";
+  import { page } from "$app/stores";
   import { onMount } from "svelte";
   import { browser } from "$app/environment";
   import TriggerIndicator from "$lib/components/TriggerIndicator.svelte";
@@ -23,11 +24,14 @@
     trackContractKilled,
     trackContractsBurned,
   } from "$lib/analytics";
+  import Manifesto from "$lib/components/Manifesto.svelte";
 
   let { children } = $props();
 
   // Notification Permission State
+  // Notification Permission State
   let showNotificationPrompt = $state(false);
+  let showManifesto = $state(false);
 
   // Splash screen state
   let showSplash = $state(true);
@@ -231,6 +235,21 @@
       [ ENABLE SECURE COMMS ]
     </button>
   </div>
+{/if}
+
+<!-- Manifesto Overlay -->
+{#if showManifesto}
+  <Manifesto onClose={() => (showManifesto = false)} />
+{/if}
+
+<!-- Footer Link (Bottom Center - Above Input) - Only on Active Tab -->
+{#if $page.url.pathname === "/"}
+  <button
+    class="fixed bottom-32 left-1/2 -translate-x-1/2 z-[30] text-[10px] text-zinc-600 hover:text-white uppercase tracking-widest transition-colors font-mono cursor-pointer"
+    onclick={() => (showManifesto = true)}
+  >
+    [ MANIFESTO ]
+  </button>
 {/if}
 
 {@render children()}
