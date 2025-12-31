@@ -22,6 +22,7 @@
 
   // UI State
   let showOath = $state(true);
+  let showToast = $state(false); // For clipboard fallback
 
   // Check if onboarding is complete (returning user)
   $effect(() => {
@@ -61,11 +62,61 @@
   function handleContractAbort(id: string) {
     abortContractOptimistic(id);
   }
+
+  // --- RECRUIT FEATURE ---
+  async function recruitAgent() {
+    const shareData = {
+      title: "PRIORITY INVITATION",
+      text: `/// ENCRYPTED MESSAGE ///
+
+OPERATIVE RECRUITMENT PROTOCOL
+STATUS: ACTIVE
+
+You have been identified as a potential asset.
+Access the network below to begin your directive.
+
+SECURE ACCESS:
+https://killlist.app
+
+/// END TRANSMISSION ///`,
+      url: "https://killlist.app",
+    };
+
+    // Auto-copy to clipboard first (as backup for apps that drop text)
+    if (browser) {
+      try {
+        await navigator.clipboard.writeText(shareData.text);
+        showToast = true;
+        setTimeout(() => (showToast = false), 3000);
+      } catch (err) {
+        console.error("Auto-copy failed:", err);
+      }
+    }
+
+    // Then trigger share menu WITH URL (so WhatsApp/etc appear)
+    if (browser && navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        // User cancelled in share menu, normal behavior
+      }
+    }
+  }
 </script>
 
 <svelte:head>
   <title>KILL LIST</title>
 </svelte:head>
+
+<!-- Toast Notification -->
+{#if showToast}
+  <div
+    class="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-kl-gold/10 border border-kl-gold/40 px-6 py-3 text-kl-gold text-xs tracking-widest backdrop-blur-md whitespace-nowrap"
+    style="font-family: 'JetBrains Mono', monospace;"
+  >
+    MESSAGE COPIED
+  </div>
+{/if}
 
 <!-- Oath Screen Overlay -->
 {#if showOath && !$isLoading}
@@ -84,7 +135,13 @@
     <h1 class="text-xl tracking-widest text-kl-gold">KILL LIST</h1>
 
     <div class="flex items-center gap-3">
-      <!-- Add button -->
+      <!-- Recruit Button -->
+      <button
+        onclick={recruitAgent}
+        class="border border-kl-gold/30 text-kl-gold/70 text-[10px] uppercase px-3 py-1.5 hover:bg-kl-gold/10 hover:border-kl-gold hover:text-kl-gold transition-colors tracking-wider mr-2"
+      >
+        [ Recruit ]
+      </button>
 
       <!-- Vault counter -->
       <span class="text-kl-gold text-lg">
