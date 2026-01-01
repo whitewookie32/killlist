@@ -4,6 +4,7 @@
   import type { Contract } from "$lib/db";
   import { playExecuteSound, unlockAudio } from "$lib/audio";
   import { trackContractKilled, trackContractAborted } from "$lib/analytics";
+  import { downloadMissionICS } from "$lib/ics";
 
   // Props
   interface Props {
@@ -265,6 +266,34 @@
             onclick={handleAbort}
           >
             [ABORT MISSION]
+          </button>
+        {/if}
+
+        <!-- Mission Upload Button (Desktop/Mobile) -->
+        {#if isExpanded}
+          <button
+            type="button"
+            class="text-[10px] text-kl-gold/70 hover:text-kl-gold tracking-widest transition-colors flex items-center gap-1 ml-4"
+            style="font-family: 'JetBrains Mono', monospace;"
+            onclick={(e) => {
+              e.stopPropagation();
+              downloadMissionICS(contract);
+            }}
+          >
+            <svg
+              class="w-3 h-3"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+              />
+            </svg>
+            [UPLOAD MISSION]
           </button>
         {/if}
       </div>
