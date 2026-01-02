@@ -7,7 +7,7 @@ export const HapticPatterns = {
   Heavy: [50, 50, 50] // Kill Confirmed
 } as const;
 
-export type HapticPattern = number | number[];
+export type HapticPattern = number | number[] | readonly number[];
 
 /**
  * Trigger haptic feedback (vibration)
@@ -22,7 +22,10 @@ export function vibrate(pattern: HapticPattern): void {
   if (!navigator.vibrate) return;
 
   try {
-    const result = navigator.vibrate(pattern);
+    // Cast readonly arrays to mutable for the API
+    const p = Array.isArray(pattern) ? [...pattern] : pattern;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    navigator.vibrate(p as any);
     // console.log('Vibration result:', result);
   } catch (e) {
     // console.error('Vibration failed:', e);

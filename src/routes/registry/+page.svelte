@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
-  import { slide } from "svelte/transition";
+  import { slide, fade } from "svelte/transition";
   import BottomNav from "$lib/components/BottomNav.svelte";
   import DeadDrop from "$lib/components/DeadDrop.svelte";
   import {
@@ -16,13 +16,46 @@
   import { playLoad, unlockAudio } from "$lib/audio";
   import { vibrate, HapticPatterns } from "$lib/haptic";
   import { trackContractAccepted, trackDossierFiled } from "$lib/analytics";
+  import { trainingStore } from "$lib/stores/training";
 
   // Redirect if not onboarded
   $effect(() => {
     if (!$isLoading && !$settings.onboardingComplete) {
-      goto("/");
+      if ($trainingStore.phase === "idle") {
+        goto("/");
+      }
     }
   });
+
+  // Derived Training State
+  const isSecureComms = $derived($trainingStore.phase === "secureComms");
+  const isAcquisition = $derived($trainingStore.phase === "acquisition");
+  const isActivation = $derived($trainingStore.phase === "activation");
+
+  // Dummy Contracts for Training
+  const DUMMY_CONTRACTS = [
+    {
+      id: "dummy1",
+      title: "OPERATION: BLACKOUT",
+      priority: "normal",
+      terminusTime: "23:59",
+      createdAt: new Date(),
+    },
+    {
+      id: "dummy2",
+      title: "TARGET: UNKNOWN",
+      priority: "highTable",
+      terminusTime: "00:00",
+      createdAt: new Date(),
+    },
+  ];
+
+  // Logic to show dummies or real contracts
+  const visibleContracts = $derived(
+    isSecureComms || isAcquisition || isActivation
+      ? [...DUMMY_CONTRACTS, ...$registryContracts]
+      : $registryContracts,
+  );
 
   // UI State
   let showCreateForm = $state(false);
@@ -44,14 +77,14 @@
   $effect(() => {
     const hasTeased = sessionStorage.getItem("registry_tease_shown");
     // Only tease if we have contracts and haven't shown it yet
-    if (!hasTeased && $registryContracts.length > 0) {
+    if (!hasTeased && visibleContracts.length > 0) {
       // Set flag immediately to prevent re-triggering while animation plays
       sessionStorage.setItem("registry_tease_shown", "true");
 
       // Longer delay to ensure complete render/transition
       setTimeout(() => {
         // Slide all visible contracts more noticeably
-        $registryContracts.forEach((c) => {
+        visibleContracts.forEach((c) => {
           if (!swipeStates[c.id]?.swiping) {
             swipeStates[c.id] = { x: 40, swiping: false };
           }
@@ -59,7 +92,7 @@
 
         // Hold for a moment, then snap back
         setTimeout(() => {
-          $registryContracts.forEach((c) => {
+          visibleContracts.forEach((c) => {
             // Only reset if user isn't currently swiping
             if (!swipeStates[c.id]?.swiping) {
               swipeStates[c.id] = { x: 0, swiping: false };
@@ -107,11 +140,35 @@
   function handleAccept(id: string) {
     unlockAudio();
     playLoad();
+
+    // Training Intercept
+    if (isActivation) {
+      acceptContractOptimistic(id);
+      trainingStore.advanceToExecutionExpand();
+      goto("/");
+      return;
+    }
+
     acceptContractOptimistic(id);
     trackContractAccepted();
   }
 
+  function handleDeadDropAdd(title: string) {
+    if (isAcquisition) {
+      // Find the new contract to activate training phase
+      // Small timeout to allow store propagation just in case, though usually sync
+      setTimeout(() => {
+        const contract = $registryContracts.find((c) => c.title === title);
+        if (contract) {
+          trainingStore.advanceToActivation(contract.id);
+        }
+      }, 100);
+    }
+  }
+
   function handleDelete(id: string) {
+    // Prevent delete during training
+    if (isActivation) return;
     deleteContractOptimistic(id);
   }
 
@@ -193,7 +250,7 @@
     <!-- Pending Bounties Counter (Bank Balance Style) -->
     <div class="flex items-baseline gap-3">
       <span class="text-5xl font-bold text-kl-gold tabular-nums tracking-tight">
-        {$registryCount}
+        {visibleContracts.length}
       </span>
       <span class="text-xs tracking-widest text-kl-gold/50 uppercase">
         Pending Bounties
@@ -217,7 +274,7 @@
           <div class="h-12 bg-neutral-900 animate-pulse"></div>
         {/each}
       </div>
-    {:else if $registryContracts.length === 0}
+    {:else if visibleContracts.length === 0}
       <!-- Empty state -->
       <div class="flex flex-col items-center justify-center pt-20">
         <svg
@@ -243,7 +300,7 @@
     {:else}
       <!-- Contract list - Dense "Cold Storage" style -->
       <div class="space-y-1">
-        {#each $registryContracts as contract (contract.id)}
+        {#each visibleContracts as contract, i (contract.id)}
           {@const swipeProgress = getSwipeProgress(contract.id)}
           {@const isHighTableOrder = contract.priority === "highTable"}
           {@const isExpanded = expandedId === contract.id}
@@ -253,6 +310,32 @@
             ontouchstart={(e) => handleTouchStart(contract.id, e)}
             onclick={() => toggleExpand(contract.id)}
           >
+            <!-- Training Swipe Cue -->
+            {#if isActivation && i === visibleContracts.length - 1}
+              <div
+                class="absolute right-4 top-1/2 -translate-y-1/2 z-20 pointer-events-none flex items-center gap-2 animate-pulse text-kl-gold"
+                transition:fade
+              >
+                <span
+                  class="text-xs tracking-widest bg-black/80 px-2 py-1 border border-kl-gold/30 shadow-[0_0_10px_rgba(212,175,55,0.2)]"
+                  >SWIPE RIGHT</span
+                >
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M13 7l5 5m0 0l-5 5m5-5H6"
+                  />
+                </svg>
+              </div>
+            {/if}
+
             <!-- Swipe accept indicator (background) -->
             <div
               class="absolute inset-y-0 left-0 bg-green-900/50 flex items-center pl-4 transition-all"
@@ -384,7 +467,34 @@
   </main>
 
   <!-- Dead Drop Quick Input -->
-  <DeadDrop />
+  {#if isAcquisition}
+    <div
+      class="fixed bottom-36 left-0 right-0 flex justify-center z-50 pointer-events-none"
+      transition:fade
+    >
+      <div class="flex flex-col items-center gap-2 animate-bounce">
+        <span
+          class="text-kl-gold text-xs tracking-widest bg-black/80 px-3 py-1 border border-kl-gold shadow-[0_0_10px_rgba(212,175,55,0.3)]"
+        >
+          INPUT TARGET
+        </span>
+        <svg
+          class="w-4 h-4 text-kl-gold"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 14l-7 7m0 0l-7-7m7 7V3"
+          />
+        </svg>
+      </div>
+    </div>
+  {/if}
+  <DeadDrop onAdd={handleDeadDropAdd} />
 
   <!-- Advanced Options Modal -->
   {#if showCreateForm}

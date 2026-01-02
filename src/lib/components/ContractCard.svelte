@@ -11,9 +11,10 @@
     contract: Contract;
     onComplete: (id: string) => void;
     onAbort?: (id: string) => void;
+    onExpand?: (id: string, expanded: boolean) => void;
   }
 
-  let { contract, onComplete, onAbort }: Props = $props();
+  let { contract, onComplete, onAbort, onExpand }: Props = $props();
 
   // State
   let offsetX = $state(0);
@@ -61,6 +62,7 @@
       return;
     }
     isExpanded = !isExpanded;
+    onExpand?.(contract.id, isExpanded);
   }
 
   // Format accepted timestamp

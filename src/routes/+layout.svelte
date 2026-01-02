@@ -25,6 +25,7 @@
     trackContractsBurned,
   } from "$lib/analytics";
   import Manifesto from "$lib/components/Manifesto.svelte";
+  import { trainingStore } from "$lib/stores/training";
 
   let { children } = $props();
 
@@ -106,9 +107,11 @@
 
     // Check Notification Permission
     if ("Notification" in window) {
+      const oathSigned = localStorage.getItem("oath_signed") === "true";
       if (
-        Notification.permission === "default" ||
-        Notification.permission === "denied"
+        (Notification.permission === "default" ||
+          Notification.permission === "denied") &&
+        oathSigned
       ) {
         showNotificationPrompt = true;
       } else if (Notification.permission === "granted") {
@@ -221,20 +224,60 @@
 />
 
 <!-- Secure Comms Prompt -->
-{#if showNotificationPrompt}
+{#if showNotificationPrompt || $trainingStore.phase === "secureComms"}
   <div class="fixed bottom-36 right-4 z-[110]">
+    {#if $trainingStore.phase === "secureComms"}
+      <!-- Tooltip / Bubble -->
+      <div
+        class="absolute bottom-full right-0 mb-4 w-60 bg-neutral-800 text-neutral-300 text-xs p-4 border border-kl-gold/30 shadow-2xl rounded-sm"
+        style="font-family: 'JetBrains Mono', monospace;"
+      >
+        <p class="mb-2 text-kl-gold font-bold tracking-widest">
+          TACTICAL ALERTS
+        </p>
+        <p>
+          Enable secure comms to receive mission activation signals in
+          real-time.
+        </p>
+        <div
+          class="absolute -bottom-2 right-6 w-4 h-4 bg-neutral-800 border-b border-r border-kl-gold/30 transform rotate-45"
+        ></div>
+      </div>
+    {/if}
+
     <button
-      class="bg-neutral-900 border border-kl-gold/30 text-kl-gold text-[10px] uppercase tracking-widest px-3 py-2 hover:bg-kl-gold/10 transition-colors"
+      class="bg-neutral-900 border border-kl-gold/30 text-kl-gold text-[10px] uppercase tracking-widest px-3 py-2 hover:bg-kl-gold/10 transition-colors shadow-[0_0_15px_rgba(212,175,55,0.1)] relative"
+      class:animate-pulse={$trainingStore.phase === "secureComms"}
+      class:z-[110]={$trainingStore.phase === "secureComms"}
       style="font-family: 'JetBrains Mono', monospace;"
       onclick={async () => {
+        if ($trainingStore.phase === "secureComms") {
+          try {
+            await requestPermission();
+          } catch (e) {
+            console.error(e);
+          }
+          // Hide variable to prevent "duplicate" button appearance
+          showNotificationPrompt = false;
+          trainingStore.advanceToAcquisition();
+          return;
+        }
+
+        // Normal flow
         const granted = await requestPermission();
-        // Hide regardless of result (if denied, don't nag)
         showNotificationPrompt = false;
       }}
     >
       [ ENABLE SECURE COMMS ]
     </button>
   </div>
+{/if}
+
+<!-- Training Overlay (Dim Background) -->
+{#if $trainingStore.phase === "secureComms"}
+  <div
+    class="fixed inset-0 bg-neutral-950/80 z-[100] transition-opacity duration-500 backdrop-blur-[2px]"
+  ></div>
 {/if}
 
 <!-- Manifesto Overlay -->

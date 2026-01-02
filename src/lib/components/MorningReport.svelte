@@ -4,6 +4,8 @@
     import { browser } from "$app/environment";
     import { getKilledContracts, getClientTodayISODate } from "$lib/db";
     import { playLoad } from "$lib/audio";
+    import { trainingStore } from "$lib/stores/training";
+    import { settings } from "$lib/stores/contracts";
 
     // Props
     // None needed, it manages its own state
@@ -26,8 +28,13 @@
         const today = getClientTodayISODate();
         const lastReportDate = localStorage.getItem("last_report_date");
 
-        // If report already shown today, skip
-        if (lastReportDate === today) {
+        // If report already shown today, IN TRAINING, or ONBOARDING INCOMPLETE, skip
+        if (
+            lastReportDate === today ||
+            ($trainingStore.phase !== "idle" &&
+                $trainingStore.phase !== "complete") ||
+            !$settings.onboardingComplete
+        ) {
             return;
         }
 

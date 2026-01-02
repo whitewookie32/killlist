@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { browser } from "$app/environment";
+  import { fade } from "svelte/transition";
   import { page } from "$app/stores";
   import OathScreen from "$lib/components/OathScreen.svelte";
   import ContractCard from "$lib/components/ContractCard.svelte";
@@ -38,24 +39,32 @@
     }
   });
 
+  import { trainingStore } from "$lib/stores/training";
+
   function handleOathComplete() {
     // Mark oath as signed in localStorage (quick gatekeeper check)
     if (browser) {
       localStorage.setItem("oath_signed", "true");
     }
 
-    // Complete onboarding in Dexie (source of truth)
-    completeOnboardingOptimistic();
-    showOath = false;
+    // DO NOT complete onboarding yet - we are entering Training Day
+    // completeOnboardingOptimistic();
 
-    // Track oath completion
+    showOath = false;
     trackOathCompleted();
 
-    // First-time users go to Registry to start adding contracts
+    // Start Training Mode -> Secure Comms Phase
+    trainingStore.start();
     goto("/registry");
   }
 
   function handleContractKill(id: string) {
+    if ($trainingStore.phase === "execution") {
+      killContractOptimistic(id);
+      trainingStore.advanceToDebrief();
+      goto("/morgue");
+      return;
+    }
     killContractOptimistic(id);
   }
 
@@ -157,9 +166,11 @@ https://killlist.app
       <span class="text-sm tracking-widest text-kl-gold/70">
         TODAY'S CONTRACTS
       </span>
-      <span class="text-xs text-neutral-600 animate-pulse mt-0.5"
-        >[SWIPE TO EXECUTE]</span
-      >
+      {#if $trainingStore.phase !== "executionExpand" && $trainingStore.phase !== "execution"}
+        <span class="text-xs text-neutral-600 animate-pulse mt-0.5"
+          >[SWIPE TO EXECUTE]</span
+        >
+      {/if}
     </div>
     <span class="text-sm tracking-wider text-kl-gold whitespace-nowrap">
       {$openCount} OPEN
@@ -203,12 +214,84 @@ https://killlist.app
     {:else}
       <!-- Contract list -->
       <div class="space-y-3">
-        {#each $todayActiveContracts as contract (contract.id)}
-          <ContractCard
-            {contract}
-            onComplete={handleContractKill}
-            onAbort={handleContractAbort}
-          />
+        {#each $todayActiveContracts as contract, i (contract.id)}
+          <div
+            class="relative"
+            class:ring-2={$trainingStore.phase === "executionExpand" ||
+              $trainingStore.phase === "execution"}
+            class:ring-kl-gold={$trainingStore.phase === "executionExpand" ||
+              $trainingStore.phase === "execution"}
+          >
+            <!-- Training Expand Cue -->
+            {#if $trainingStore.phase === "executionExpand" && i === 0}
+              <div
+                class="absolute -top-12 left-0 right-0 flex justify-center z-20 pointer-events-none"
+                transition:fade
+              >
+                <div class="flex flex-col items-center gap-1 animate-bounce">
+                  <span
+                    class="text-kl-gold text-xs tracking-widest bg-black/80 px-2 py-1 border border-kl-gold shadow-[0_0_10px_rgba(212,175,55,0.3)]"
+                  >
+                    TAP TO EXPAND
+                  </span>
+                  <svg
+                    class="w-4 h-4 text-kl-gold"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                    />
+                  </svg>
+                </div>
+              </div>
+            {/if}
+
+            <!-- Training Execution Cue -->
+            {#if $trainingStore.phase === "execution" && i === 0}
+              <div
+                class="absolute top-8 right-6 z-20 pointer-events-none flex items-center gap-2 animate-pulse text-kl-gold"
+                transition:fade
+              >
+                <span
+                  class="text-xs tracking-widest bg-black/80 px-2 py-1 border border-kl-gold/50 shadow-[0_0_10px_rgba(212,175,55,0.3)]"
+                >
+                  SWIPE RIGHT
+                </span>
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M13 7l5 5m0 0l-5 5m5-5H6"
+                  />
+                </svg>
+              </div>
+            {/if}
+
+            <ContractCard
+              {contract}
+              onComplete={handleContractKill}
+              onAbort={handleContractAbort}
+              onExpand={(id, expanded) => {
+                if ($trainingStore.phase === "executionExpand" && expanded) {
+                  trainingStore.advanceToExecution();
+                } else if ($trainingStore.phase === "execution" && !expanded) {
+                  // User collapsed the card while in execution phase - revert guidance
+                  trainingStore.advanceToExecutionExpand();
+                }
+              }}
+            />
+          </div>
         {/each}
       </div>
     {/if}

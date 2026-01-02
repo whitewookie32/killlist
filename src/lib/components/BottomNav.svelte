@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from "$app/stores";
   import { registryCount, openCount, settings } from "$lib/stores/contracts";
+  import { trainingStore } from "$lib/stores/training";
   import { browser } from "$app/environment";
 
   // Determine active route
@@ -20,6 +21,24 @@
     ];
 
     if (!$settings.onboardingComplete) {
+      // Dynamic training navigation
+      if (
+        $trainingStore.phase === "acquisition" ||
+        $trainingStore.phase === "activation" ||
+        $trainingStore.phase === "secureComms"
+      ) {
+        return allItems.filter((i) => i.icon === "registry");
+      }
+      if (
+        $trainingStore.phase === "executionExpand" ||
+        $trainingStore.phase === "execution"
+      ) {
+        return allItems.filter((i) => i.icon === "active");
+      }
+      if ($trainingStore.phase === "debrief") {
+        return allItems.filter((i) => i.icon === "morgue");
+      }
+      // Fallback
       return allItems.filter((i) => i.icon === "active");
     }
 
