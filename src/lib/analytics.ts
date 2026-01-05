@@ -144,6 +144,20 @@ export function trackPageView(pageName: string): void {
 }
 
 /**
+ * Track Contract Hit (Deep Link) Accepted
+ */
+export function trackContractHit(contractId: string, isNewUser: boolean): void {
+  getPostHog()?.capture('contract_hit_accepted', { contractId, isNewUser });
+}
+
+/**
+ * Track Contract Hit (Deep Link) Sent/Shared
+ */
+export function trackContractHitSent(contractId: string): void {
+  getPostHog()?.capture('contract_hit_sent', { contractId });
+}
+
+/**
  * Track oath completion (onboarding)
  */
 export function trackOathCompleted(): void {

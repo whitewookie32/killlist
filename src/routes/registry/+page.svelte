@@ -16,7 +16,11 @@
   } from "$lib/stores/contracts";
   import { playLoad, unlockAudio } from "$lib/audio";
   import { vibrate, HapticPatterns } from "$lib/haptic";
-  import { trackContractAccepted, trackDossierFiled } from "$lib/analytics";
+  import {
+    trackContractAccepted,
+    trackDossierFiled,
+    trackContractHitSent,
+  } from "$lib/analytics";
   import { trainingStore } from "$lib/stores/training";
   import type { Contract } from "$lib/db";
   import { dndzone, type DndEvent } from "svelte-dnd-action";
@@ -255,6 +259,28 @@
     const state = swipeStates[id];
     if (!state) return 0;
     return Math.min(1, state.x / 100);
+  }
+
+  // Share Function for Registry
+  async function shareContract(contract: Contract) {
+    trackContractHitSent(contract.id);
+
+    const url = `${$page.url.origin}/assign?target=${encodeURIComponent(contract.title)}&priority=${contract.priority}`;
+    const text = `/// CONTRACT INTERCEPTED ///\nTarget: ${contract.title}\nPriority: ${contract.priority.toUpperCase()}\n\nAccept Mission:\n${url}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Contract Hit",
+          text: text,
+          url: url,
+        });
+      } catch (err) {
+        console.warn("Share failed", err);
+      }
+    } else {
+      navigator.clipboard.writeText(text);
+    }
   }
 </script>
 
@@ -527,17 +553,42 @@
                         {/if}
                       </div>
 
-                      <!-- Accept button (mobile-friendly when expanded) -->
-                      <button
-                        type="button"
-                        class="px-4 py-2 border border-kl-gold text-kl-gold text-xs tracking-widest hover:bg-kl-gold/10 transition-colors uppercase"
-                        onclick={(e) => {
-                          e.stopPropagation();
-                          handleAccept(contract.id);
-                        }}
-                      >
-                        [ACCEPT]
-                      </button>
+                      <!-- Accept button (mobile-friendly) -->
+                      <div class="flex items-center gap-3">
+                        <button
+                          type="button"
+                          class="px-3 py-2 border border-neutral-700 text-neutral-500 text-xs tracking-widest hover:text-neutral-300 transition-colors uppercase flex items-center gap-2"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            shareContract(contract);
+                          }}
+                        >
+                          <svg
+                            class="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            ><path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                            ></path></svg
+                          >
+                          ASSIGN
+                        </button>
+
+                        <button
+                          type="button"
+                          class="px-4 py-2 border border-kl-gold text-kl-gold text-xs tracking-widest hover:bg-kl-gold/10 transition-colors uppercase"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            handleAccept(contract.id);
+                          }}
+                        >
+                          [ACCEPT]
+                        </button>
+                      </div>
                     </div>
                   </div>
                 {/if}
