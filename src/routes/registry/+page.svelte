@@ -25,6 +25,7 @@
   import type { Contract } from "$lib/db";
   import { dndzone, type DndEvent } from "svelte-dnd-action";
   import { flip } from "svelte/animate";
+  import { downloadMissionICS } from "$lib/ics";
 
   // Redirect if not onboarded
   $effect(() => {
@@ -538,96 +539,133 @@
                 {#if isExpanded}
                   <div class="px-3 pb-3" transition:slide={{ duration: 200 }}>
                     <div
-                      class="pt-3 border-t border-neutral-800 flex flex-col gap-3"
+                      class="pt-3 border-t border-neutral-800 flex flex-col gap-4"
                     >
-                      <!-- Row 1: Stats & Primary Actions -->
-                      <div class="flex items-center justify-between">
-                        <!-- Left: Status Only -->
-                        <div>
-                          {#if isHighTableOrder}
-                            <span
-                              class="text-kl-crimson text-[10px] tracking-widest"
-                              >EXECUTIVE ORDER</span
-                            >
-                          {/if}
-                        </div>
+                      <!-- Metadata Row -->
+                      <div
+                        class="flex items-center justify-between text-[10px] tracking-widest text-neutral-500"
+                      >
+                        <span
+                          >Created: {new Date(
+                            contract.createdAt,
+                          ).toLocaleDateString()}</span
+                        >
+                        {#if isHighTableOrder}
+                          <span class="text-kl-crimson font-bold"
+                            >EXECUTIVE ORDER</span
+                          >
+                        {/if}
+                      </div>
 
-                        <!-- Right: Action Buttons -->
-                        <div class="flex items-center gap-3">
+                      <!-- Action Bar -->
+                      <div class="flex items-center justify-between">
+                        <!-- Secondary Actions (Icons) -->
+                        <div class="flex items-center gap-2">
+                          <!-- Upload (ICS) -->
                           <button
                             type="button"
-                            class="px-3 py-2 border border-neutral-700 text-neutral-500 text-xs tracking-widest hover:text-neutral-300 transition-colors uppercase flex items-center gap-2"
+                            class="w-10 h-10 flex items-center justify-center border border-neutral-700 text-neutral-500 hover:text-kl-gold hover:border-kl-gold/50 hover:bg-kl-gold/5 transition-colors"
+                            title="Add to Calendar"
+                            onclick={(e) => {
+                              e.stopPropagation();
+                              downloadMissionICS(contract);
+                            }}
+                          >
+                            <svg
+                              class="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.5"
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                              />
+                            </svg>
+                          </button>
+
+                          <!-- Assign (Share) -->
+                          <button
+                            type="button"
+                            class="w-10 h-10 flex items-center justify-center border border-neutral-700 text-neutral-500 hover:text-white hover:border-neutral-500 hover:bg-neutral-800 transition-colors"
+                            title="Assign Agent"
                             onclick={(e) => {
                               e.stopPropagation();
                               shareContract(contract);
                             }}
                           >
-                            [<svg
-                              class="w-3 h-3"
+                            <svg
+                              class="w-4 h-4"
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
-                              ><path
+                            >
+                              <path
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
-                                stroke-width="2"
+                                stroke-width="1.5"
                                 d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-                              ></path></svg
-                            >
-                            ASSIGN]
+                              />
+                            </svg>
                           </button>
 
+                          <!-- Delete -->
                           <button
                             type="button"
-                            class="px-4 py-2 border border-kl-gold text-kl-gold text-xs tracking-widest hover:bg-kl-gold/10 transition-colors uppercase"
+                            class="w-10 h-10 flex items-center justify-center border transition-all duration-200 {deleteConfirmId ===
+                            contract.id
+                              ? 'border-red-600 bg-red-900/20 text-red-500 w-24'
+                              : 'border-neutral-700 text-neutral-500 hover:text-red-500 hover:border-red-900/50 hover:bg-red-900/10'}"
+                            title="Delete"
                             onclick={(e) => {
                               e.stopPropagation();
-                              handleAccept(contract.id);
+                              if (deleteConfirmId === contract.id) {
+                                handleDelete(contract.id);
+                                deleteConfirmId = null;
+                              } else {
+                                deleteConfirmId = contract.id;
+                                setTimeout(() => {
+                                  if (deleteConfirmId === contract.id)
+                                    deleteConfirmId = null;
+                                }, 3000);
+                              }
                             }}
                           >
-                            [ACCEPT]
+                            {#if deleteConfirmId === contract.id}
+                              <span
+                                class="text-[10px] uppercase font-bold tracking-widest leading-none"
+                                >SHRED</span
+                              >
+                            {:else}
+                              <svg
+                                class="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="1.5"
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                              </svg>
+                            {/if}
                           </button>
                         </div>
-                      </div>
 
-                      <!-- Row 2: Metadata & Destructive -->
-                      <div class="flex items-center justify-between">
-                        <!-- Left: Date -->
-                        <span
-                          class="text-[10px] text-neutral-600 tracking-wider"
-                        >
-                          Created: {new Date(
-                            contract.createdAt,
-                          ).toLocaleDateString()}
-                        </span>
-
-                        <!-- Right: Delete -->
-                        <!-- Right: Delete -->
+                        <!-- Primary Action -->
                         <button
                           type="button"
-                          class="px-4 py-2 border text-xs tracking-widest transition-colors uppercase {deleteConfirmId ===
-                          contract.id
-                            ? 'border-red-600 bg-red-900/20 text-red-500 font-semibold'
-                            : 'border-red-900/50 text-red-700 hover:bg-red-900/10'}"
+                          class="px-6 py-2.5 border border-kl-gold text-kl-gold text-xs font-bold tracking-widest hover:bg-kl-gold/10 transition-colors uppercase bg-kl-gold/5"
                           onclick={(e) => {
                             e.stopPropagation();
-                            if (deleteConfirmId === contract.id) {
-                              handleDelete(contract.id);
-                              deleteConfirmId = null;
-                            } else {
-                              deleteConfirmId = contract.id;
-                              // Reset confirmation after 3 seconds if not clicked
-                              setTimeout(() => {
-                                if (deleteConfirmId === contract.id) {
-                                  deleteConfirmId = null;
-                                }
-                              }, 3000);
-                            }
+                            handleAccept(contract.id);
                           }}
                         >
-                          {deleteConfirmId === contract.id
-                            ? "[CONFIRM SHRED]"
-                            : "[DELETE]"}
+                          [ACCEPT]
                         </button>
                       </div>
                     </div>
