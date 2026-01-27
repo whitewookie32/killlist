@@ -249,20 +249,21 @@
     {/if}
 
     <button
-      class="bg-neutral-900 border border-kl-gold/30 text-kl-gold text-[10px] uppercase tracking-widest px-3 py-2 hover:bg-kl-gold/10 transition-colors shadow-[0_0_15px_rgba(212,175,55,0.1)] relative"
+      class="bg-neutral-900 border-2 border-kl-gold text-kl-gold text-[10px] uppercase tracking-widest px-4 py-3 hover:bg-kl-gold/10 transition-colors shadow-[0_0_20px_rgba(212,175,55,0.2)] relative cursor-pointer active:scale-95"
       class:animate-pulse={$trainingStore.phase === "secureComms"}
-      class:z-[110]={$trainingStore.phase === "secureComms"}
       style="font-family: 'JetBrains Mono', monospace;"
       onclick={async () => {
         if ($trainingStore.phase === "secureComms") {
+          // Transition phase IMMEDIATELY to avoid stalls
+          trainingStore.advanceToAcquisition();
+          showNotificationPrompt = false;
+
+          // Request permission in the background
           try {
             await requestPermission();
           } catch (e) {
-            console.error(e);
+            console.error("Permission request failed:", e);
           }
-          // Hide variable to prevent "duplicate" button appearance
-          showNotificationPrompt = false;
-          trainingStore.advanceToAcquisition();
           return;
         }
 
@@ -296,8 +297,4 @@
 
 <!-- Secure Uplink Terminal -->
 <SecureUplink bind:isOpen={$secureUplinkOpen} />
-
-<!-- Global Settings Trigger (Gear Icon) removed from layout - moving to relevant headers if needed, or kept as a global but user wants list clean -->
-<!-- I will keep it but remove the registry footer triggers specifically -->
-
 {@render children()}

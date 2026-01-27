@@ -13,37 +13,11 @@
     icon: "registry" | "active" | "morgue";
   };
 
-  const navItems = $derived.by(() => {
-    const allItems: NavItem[] = [
-      { path: "/registry", label: "REGISTRY", icon: "registry" },
-      { path: "/", label: "ACTIVE", icon: "active" },
-      { path: "/morgue", label: "MORGUE", icon: "morgue" },
-    ];
-
-    if (!$settings.onboardingComplete) {
-      // Dynamic training navigation
-      if (
-        $trainingStore.phase === "acquisition" ||
-        $trainingStore.phase === "activation" ||
-        $trainingStore.phase === "secureComms"
-      ) {
-        return allItems.filter((i) => i.icon === "registry");
-      }
-      if (
-        $trainingStore.phase === "executionExpand" ||
-        $trainingStore.phase === "execution"
-      ) {
-        return allItems.filter((i) => i.icon === "active");
-      }
-      if ($trainingStore.phase === "debrief") {
-        return allItems.filter((i) => i.icon === "morgue");
-      }
-      // Fallback
-      return allItems.filter((i) => i.icon === "active");
-    }
-
-    return allItems;
-  });
+  const navItems = $derived([
+    { path: "/registry", label: "REGISTRY", icon: "registry" },
+    { path: "/", label: "ACTIVE", icon: "active" },
+    { path: "/morgue", label: "MORGUE", icon: "morgue" },
+  ]);
 
   function isActive(path: string): boolean {
     if (path === "/") {
