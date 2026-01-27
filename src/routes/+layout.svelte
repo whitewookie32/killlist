@@ -7,6 +7,8 @@
   import MissionReportModal from "$lib/components/MissionReportModal.svelte";
   import SplashScreen from "$lib/components/SplashScreen.svelte";
   import MorningReport from "$lib/components/MorningReport.svelte";
+  import SecureUplink from "$lib/components/SecureUplink.svelte";
+  import SettingsModal from "$lib/components/SettingsModal.svelte";
   import {
     initializeStores,
     todayActiveContracts,
@@ -17,6 +19,7 @@
     startDeadlineMonitoring,
     stopDeadlineMonitoring,
   } from "$lib/stores/contracts";
+  import { secureUplinkOpen, settingsOpen } from "$lib/stores/ui";
   import { playChargeUp, playExecuteSound, unlockAudio } from "$lib/audio";
   import { requestPermission, scheduleDailyBriefing } from "$lib/notifications";
   import {
@@ -285,14 +288,16 @@
   <Manifesto onClose={() => (showManifesto = false)} />
 {/if}
 
-<!-- Footer Link (Bottom Center - Above Input) - Only on Registry Tab -->
-{#if $page.url.pathname === "/registry"}
-  <button
-    class="fixed bottom-32 left-1/2 -translate-x-1/2 z-[30] text-[10px] text-zinc-600 hover:text-white uppercase tracking-widest transition-colors font-mono cursor-pointer"
-    onclick={() => (showManifesto = true)}
-  >
-    [ MANIFESTO ]
-  </button>
-{/if}
+<!-- Settings Modal -->
+<SettingsModal
+  bind:isOpen={$settingsOpen}
+  onOpenUplink={() => ($secureUplinkOpen = true)}
+/>
+
+<!-- Secure Uplink Terminal -->
+<SecureUplink bind:isOpen={$secureUplinkOpen} />
+
+<!-- Global Settings Trigger (Gear Icon) removed from layout - moving to relevant headers if needed, or kept as a global but user wants list clean -->
+<!-- I will keep it but remove the registry footer triggers specifically -->
 
 {@render children()}

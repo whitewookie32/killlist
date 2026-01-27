@@ -1,5 +1,8 @@
 {
 	"/": [],
+	"/api/uplink": [
+		"src/routes/api/uplink/+server.ts"
+	],
 	"/assign": [],
 	"/morgue": [],
 	"/registry": []

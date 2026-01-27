@@ -15,6 +15,7 @@
     settings,
     updateContractTitle,
   } from "$lib/stores/contracts";
+  import { secureUplinkOpen } from "$lib/stores/ui";
   import { playLoad, unlockAudio } from "$lib/audio";
   import { vibrate, HapticPatterns } from "$lib/haptic";
   import {
@@ -340,27 +341,51 @@
         >
       </h1>
 
-      <!-- Add Contract button -->
-      <button
-        type="button"
-        class="w-10 h-10 rounded-full border border-kl-gold/40 flex items-center justify-center text-kl-gold hover:border-kl-gold hover:bg-kl-gold/10 transition-colors"
-        onclick={() => (showCreateForm = true)}
-        title="Add Contract"
-      >
-        <svg
-          class="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+      <div class="flex items-center gap-4">
+        <!-- HQ Feedback Trigger (Envelope) -->
+        <button
+          type="button"
+          class="text-kl-gold/60 hover:text-kl-gold transition-colors p-1"
+          onclick={() => ($secureUplinkOpen = true)}
+          title="HQ Direct Connection"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M12 4v16m8-8H4"
-          />
-        </svg>
-      </button>
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+            />
+          </svg>
+        </button>
+
+        <!-- Add Contract button (+) -->
+        <button
+          type="button"
+          class="w-10 h-10 rounded-full border border-kl-gold/40 flex items-center justify-center text-kl-gold hover:border-kl-gold hover:bg-kl-gold/10 transition-colors"
+          onclick={() => (showCreateForm = true)}
+          title="Add Contract"
+        >
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Pending Bounties Counter (Bank Balance Style) -->

@@ -26,6 +26,8 @@
  * ```
  */
 declare module '$env/static/private' {
+	export const RESEND_API_KEY: string;
+	export const UPLINK_RECIPIENT_EMAIL: string;
 	export const LESSOPEN: string;
 	export const USER: string;
 	export const npm_config_user_agent: string;
@@ -110,6 +112,8 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
+		RESEND_API_KEY: string;
+		UPLINK_RECIPIENT_EMAIL: string;
 		LESSOPEN: string;
 		USER: string;
 		npm_config_user_agent: string;
