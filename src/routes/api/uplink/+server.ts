@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { RESEND_API_KEY, UPLINK_RECIPIENT_EMAIL } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
 export const POST: RequestHandler = async ({ request }) => {
     try {
@@ -32,11 +32,11 @@ export const POST: RequestHandler = async ({ request }) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${RESEND_API_KEY}`
+                'Authorization': `Bearer ${env.RESEND_API_KEY}`
             },
             body: JSON.stringify({
                 from: 'Kill List Uplink <killist@feedback.nivel.africa>',
-                to: [UPLINK_RECIPIENT_EMAIL],
+                to: [env.UPLINK_RECIPIENT_EMAIL],
                 subject: 'SECURE UPLINK :: NEW INTEL',
                 html: htmlBody
             })

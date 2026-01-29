@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { getDb, getClientTodayISODate, type Contract } from '$lib/db';
+import { burnContract, deleteContracts, getAllContracts, getClientTodayISODate, type Contract } from '$lib/db';
 
 /**
  * The "Cleaner" - Burns any ACTIVE task from previous days.
@@ -18,12 +18,11 @@ export async function checkBurnProtocol(): Promise<Contract[]> {
   if (!browser) return [];
 
   try {
-    const db = await getDb();
     const today = getClientTodayISODate();
 
     // Find stale ACTIVE contracts (from previous days)
     // Registry contracts are excluded - they have no targetDate
-    const allContracts = await db.contracts.toArray();
+    const allContracts = await getAllContracts();
     const staleActive = allContracts.filter(
       (c: Contract) => 
         c.status === 'active' && // Only active contracts can be burned
@@ -38,11 +37,7 @@ export async function checkBurnProtocol(): Promise<Contract[]> {
     // Bulk update: mark as burned
     const ids = staleActive.map((c: Contract) => c.id);
     
-    // Use modify for bulk update
-    await db.contracts
-      .where('id')
-      .anyOf(ids)
-      .modify({ status: 'burned' });
+    await Promise.all(ids.map((id) => burnContract(id)));
 
     // Return the burned contracts (with updated status) for Mission Report
     return staleActive.map((c: Contract) => ({ 
@@ -65,8 +60,7 @@ export async function deleteBurnedContracts(ids: string[]): Promise<void> {
   if (!browser || ids.length === 0) return;
 
   try {
-    const db = await getDb();
-    await db.contracts.bulkDelete(ids);
+    await deleteContracts(ids);
   } catch (error) {
     console.error('Failed to delete burned contracts:', error);
   }

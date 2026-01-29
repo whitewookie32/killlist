@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import { env as publicEnv } from '$env/dynamic/public';
 
 // ===== Date Helpers =====
 /**
@@ -47,16 +48,40 @@ export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+const storageMode = publicEnv.PUBLIC_STORAGE_MODE ?? 'local';
+const useRemoteStorage = storageMode === 'postgres';
+
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers ?? {})
+    }
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Request failed with status ${response.status}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 // ===== Lazy Database Initialization (Browser Only) =====
 let dbInstance: any = null;
 
 /**
  * Get the Dexie database instance (browser-only, lazy initialized)
- * Exported for use by burnProtocol and other modules that need direct DB access
+ * Only used when PUBLIC_STORAGE_MODE is not set to "postgres"
  */
 export async function getDb() {
   if (!browser) {
     throw new Error('Database can only be accessed in browser');
+  }
+
+  if (useRemoteStorage) {
+    throw new Error('Dexie is disabled when PUBLIC_STORAGE_MODE=postgres');
   }
 
   if (!dbInstance) {
@@ -140,6 +165,15 @@ export async function getDb() {
 export async function getSettings(): Promise<AppSettings> {
   if (!browser) return DEFAULT_SETTINGS;
 
+  if (useRemoteStorage) {
+    try {
+      return await apiFetch<AppSettings>('/api/settings');
+    } catch (error) {
+      console.error('Failed to fetch remote settings:', error);
+      return DEFAULT_SETTINGS;
+    }
+  }
+
   const db = await getDb();
   const settings = await db.settings.get('settings');
   if (!settings) {
@@ -153,6 +187,14 @@ export async function updateSettings(
   updates: Partial<Omit<AppSettings, 'id'>>
 ): Promise<void> {
   if (!browser) return;
+
+  if (useRemoteStorage) {
+    await apiFetch('/api/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(updates)
+    });
+    return;
+  }
 
   const db = await getDb();
   const current = await getSettings();
@@ -193,8 +235,15 @@ export async function createContract(
   };
 
   if (browser) {
-    const db = await getDb();
-    await db.contracts.add(contract);
+    if (useRemoteStorage) {
+      await apiFetch('/api/contracts', {
+        method: 'POST',
+        body: JSON.stringify(contract)
+      });
+    } else {
+      const db = await getDb();
+      await db.contracts.add(contract);
+    }
   }
 
   return contract;
@@ -209,12 +258,26 @@ export async function acceptContract(id: string): Promise<void> {
   if (!browser) return;
 
   const today = getClientTodayISODate();
+  const acceptedAt = new Date().toISOString();
+
+  if (useRemoteStorage) {
+    await apiFetch(`/api/contracts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status: 'active',
+        targetDate: today,
+        acceptedAt
+      })
+    });
+    return;
+  }
+
   const db = await getDb();
 
   await db.contracts.update(id, {
     status: 'active',
     targetDate: today,
-    acceptedAt: new Date().toISOString()
+    acceptedAt
   });
 }
 
@@ -223,6 +286,11 @@ export async function acceptContract(id: string): Promise<void> {
  */
 export async function getRegistryContracts(): Promise<Contract[]> {
   if (!browser) return [];
+
+  if (useRemoteStorage) {
+    const allContracts = await getAllContracts();
+    return allContracts.filter((c) => c.status === 'registry');
+  }
 
   const db = await getDb();
   return db.contracts
@@ -234,8 +302,16 @@ export async function getRegistryContracts(): Promise<Contract[]> {
 export async function getTodayActiveContracts(): Promise<Contract[]> {
   if (!browser) return [];
 
-  const db = await getDb();
   const today = getClientTodayISODate();
+
+  if (useRemoteStorage) {
+    const allContracts = await getAllContracts();
+    return allContracts.filter(
+      (c) => c.targetDate === today && c.status === 'active'
+    );
+  }
+
+  const db = await getDb();
 
   return db.contracts
     .where('[targetDate+status]')
@@ -246,8 +322,10 @@ export async function getTodayActiveContracts(): Promise<Contract[]> {
 export async function getKilledContracts(): Promise<Contract[]> {
   if (!browser) return [];
 
-  const db = await getDb();
-  const allContracts = await db.contracts.toArray();
+  const allContracts = useRemoteStorage
+    ? await getAllContracts()
+    : await (await getDb()).contracts.toArray();
+
   const killed = allContracts.filter((c: Contract) => c.status === 'killed');
 
   killed.sort((a: Contract, b: Contract) => {
@@ -262,16 +340,35 @@ export async function getKilledContracts(): Promise<Contract[]> {
 export async function killContract(id: string): Promise<void> {
   if (!browser) return;
 
+  const killedAt = new Date().toISOString();
+
+  if (useRemoteStorage) {
+    await apiFetch(`/api/contracts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'killed', killedAt })
+    });
+    await incrementVault();
+    return;
+  }
+
   const db = await getDb();
   await db.contracts.update(id, {
     status: 'killed',
-    killedAt: new Date().toISOString()
+    killedAt
   });
   await incrementVault();
 }
 
 export async function burnContract(id: string): Promise<void> {
   if (!browser) return;
+
+  if (useRemoteStorage) {
+    await apiFetch(`/api/contracts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'burned' })
+    });
+    return;
+  }
 
   const db = await getDb();
   await db.contracts.update(id, { status: 'burned' });
@@ -280,6 +377,11 @@ export async function burnContract(id: string): Promise<void> {
 export async function deleteContract(id: string): Promise<void> {
   if (!browser) return;
 
+  if (useRemoteStorage) {
+    await apiFetch(`/api/contracts/${id}`, { method: 'DELETE' });
+    return;
+  }
+
   const db = await getDb();
   await db.contracts.delete(id);
 }
@@ -287,12 +389,24 @@ export async function deleteContract(id: string): Promise<void> {
 export async function deleteContracts(ids: string[]): Promise<void> {
   if (!browser || ids.length === 0) return;
 
+  if (useRemoteStorage) {
+    await apiFetch('/api/contracts', {
+      method: 'DELETE',
+      body: JSON.stringify({ ids })
+    });
+    return;
+  }
+
   const db = await getDb();
   await db.contracts.bulkDelete(ids);
 }
 
 export async function getAllContracts(): Promise<Contract[]> {
   if (!browser) return [];
+
+  if (useRemoteStorage) {
+    return apiFetch<Contract[]>('/api/contracts');
+  }
 
   const db = await getDb();
   return db.contracts.toArray();
@@ -303,21 +417,42 @@ export const db = {
   contracts: {
     async add(contract: Contract) {
       if (!browser) return;
+      if (useRemoteStorage) {
+        return apiFetch('/api/contracts', {
+          method: 'POST',
+          body: JSON.stringify(contract)
+        });
+      }
       const database = await getDb();
       return database.contracts.add(contract);
     },
     async update(id: string, changes: Partial<Contract>) {
       if (!browser) return;
+      if (useRemoteStorage) {
+        return apiFetch(`/api/contracts/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(changes)
+        });
+      }
       const database = await getDb();
       return database.contracts.update(id, changes);
     },
     async delete(id: string) {
       if (!browser) return;
+      if (useRemoteStorage) {
+        return apiFetch(`/api/contracts/${id}`, { method: 'DELETE' });
+      }
       const database = await getDb();
       return database.contracts.delete(id);
     },
     async bulkDelete(ids: string[]) {
       if (!browser) return;
+      if (useRemoteStorage) {
+        return apiFetch('/api/contracts', {
+          method: 'DELETE',
+          body: JSON.stringify({ ids })
+        });
+      }
       const database = await getDb();
       return database.contracts.bulkDelete(ids);
     }
@@ -325,11 +460,20 @@ export const db = {
   settings: {
     async get(id: string) {
       if (!browser) return null;
+      if (useRemoteStorage) {
+        return apiFetch<AppSettings>('/api/settings');
+      }
       const database = await getDb();
       return database.settings.get(id);
     },
     async put(settings: AppSettings) {
       if (!browser) return;
+      if (useRemoteStorage) {
+        return apiFetch('/api/settings', {
+          method: 'PATCH',
+          body: JSON.stringify(settings)
+        });
+      }
       const database = await getDb();
       return database.settings.put(settings);
     }

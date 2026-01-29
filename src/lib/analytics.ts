@@ -6,10 +6,7 @@
  */
 
 import { browser } from '$app/environment';
-import {
-  PUBLIC_POSTHOG_KEY,
-  PUBLIC_POSTHOG_HOST
-} from '$env/static/public';
+import { env } from '$env/dynamic/public';
 
 let posthogInstance: typeof import('posthog-js').default | null = null;
 let isInitialized = false;
@@ -22,7 +19,7 @@ export async function initAnalytics(): Promise<void> {
   if (!browser || isInitialized) return;
 
   // Skip if no API key configured
-  if (!PUBLIC_POSTHOG_KEY) {
+  if (!env.PUBLIC_POSTHOG_KEY) {
     console.warn('[Analytics] PostHog key not configured. Skipping initialization.');
     return;
   }
@@ -30,8 +27,8 @@ export async function initAnalytics(): Promise<void> {
   try {
     const posthog = (await import('posthog-js')).default;
 
-    posthog.init(PUBLIC_POSTHOG_KEY, {
-      api_host: PUBLIC_POSTHOG_HOST || 'https://app.posthog.com',
+    posthog.init(env.PUBLIC_POSTHOG_KEY, {
+      api_host: env.PUBLIC_POSTHOG_HOST || 'https://app.posthog.com',
 
       // Privacy Guard: Mask everything in session recordings
       session_recording: {
@@ -63,7 +60,7 @@ export async function initAnalytics(): Promise<void> {
       // Load lazily
       loaded: (ph) => {
         // Identify as anonymous user
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
           console.log('[Analytics] PostHog initialized (dev mode)');
         }
       }

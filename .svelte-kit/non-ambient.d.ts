@@ -27,20 +27,23 @@ export {};
 
 declare module "$app/types" {
 	export interface AppTypes {
-		RouteId(): "/" | "/api" | "/api/uplink" | "/assign" | "/morgue" | "/registry";
+		RouteId(): "/" | "/api" | "/api/contracts" | "/api/contracts/[id]" | "/api/settings" | "/api/uplink" | "/assign" | "/morgue" | "/registry";
 		RouteParams(): {
-			
+			"/api/contracts/[id]": { id: string }
 		};
 		LayoutParams(): {
-			"/": Record<string, never>;
-			"/api": Record<string, never>;
+			"/": { id?: string };
+			"/api": { id?: string };
+			"/api/contracts": { id?: string };
+			"/api/contracts/[id]": { id: string };
+			"/api/settings": Record<string, never>;
 			"/api/uplink": Record<string, never>;
 			"/assign": Record<string, never>;
 			"/morgue": Record<string, never>;
 			"/registry": Record<string, never>
 		};
-		Pathname(): "/" | "/api" | "/api/" | "/api/uplink" | "/api/uplink/" | "/assign" | "/assign/" | "/morgue" | "/morgue/" | "/registry" | "/registry/";
+		Pathname(): "/" | "/api" | "/api/" | "/api/contracts" | "/api/contracts/" | `/api/contracts/${string}` & {} | `/api/contracts/${string}/` & {} | "/api/settings" | "/api/settings/" | "/api/uplink" | "/api/uplink/" | "/assign" | "/assign/" | "/morgue" | "/morgue/" | "/registry" | "/registry/";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
-		Asset(): "/favicon.ico" | "/favicon.png" | "/favicon.svg" | "/icons/apple-touch-icon.png" | "/icons/icon-192.png" | "/icons/icon-512.png" | "/logo.png" | "/manifest.json" | "/sound/execute.mp3" | "/sound/execute.mp3:Zone.Identifier" | "/sound/load.mp3" | "/sound/load.mp3:Zone.Identifier" | "/sound/upload.mp3" | "/sound/upload.mp3:Zone.Identifier" | string & {};
+		Asset(): "/favicon.ico" | "/favicon.png" | "/favicon.svg" | "/icons/apple-touch-icon.png" | "/icons/icon-192.png" | "/icons/icon-512.png" | "/logo.png" | "/manifest.json" | "/sound/execute.mp3" | "/sound/load.mp3" | "/sound/upload.mp3" | string & {};
 	}
 }

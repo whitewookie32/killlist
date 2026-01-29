@@ -1,5 +1,14 @@
 {
 	"/": [],
+	"/api/contracts": [
+		"src/routes/api/contracts/+server.ts"
+	],
+	"/api/contracts/[id]": [
+		"src/routes/api/contracts/[id]/+server.ts"
+	],
+	"/api/settings": [
+		"src/routes/api/settings/+server.ts"
+	],
 	"/api/uplink": [
 		"src/routes/api/uplink/+server.ts"
 	],

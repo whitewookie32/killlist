@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { getDb, getClientTodayISODate, type Contract } from '$lib/db';
+import { getClientTodayISODate, getKilledContracts, type Contract } from '$lib/db';
 
 // ===== Types =====
 export type KillCountsByDate = Record<string, number>;
@@ -33,13 +33,7 @@ export async function getMorgueStats(): Promise<MorgueStats> {
   }
 
   try {
-    const db = await getDb();
-
-    // Query killed contracts (status is indexed)
-    const killedContracts: Contract[] = await db.contracts
-      .where('status')
-      .equals('killed')
-      .toArray();
+    const killedContracts: Contract[] = await getKilledContracts();
 
     // Sort newest first (for the detailed list)
     killedContracts.sort((a, b) => {

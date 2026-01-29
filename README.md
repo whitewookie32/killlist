@@ -4,7 +4,7 @@ A John Wick-themed productivity PWA built with SvelteKit. Execute your tasks wit
 
 ## Features
 
-- **Local-First Database**: IndexedDB via Dexie.js for instant, offline-capable storage
+- **Hybrid Storage**: IndexedDB (local-first) or Postgres (Railway) via API for multi-device sync and n8n access
 - **GPU-Accelerated Swipe**: Swipe right to complete tasks with buttery smooth 60fps animations
 - **Spacebar Trigger** (Desktop): Hold spacebar to charge, release to execute the top contract
 - **Cinematic Oath Screen**: Blood oath ritual that unlocks Web Audio
@@ -14,7 +14,7 @@ A John Wick-themed productivity PWA built with SvelteKit. Execute your tasks wit
 
 - **Framework**: SvelteKit 2 with TypeScript
 - **Styling**: Tailwind CSS v4
-- **Database**: Dexie.js (IndexedDB wrapper)
+- **Database**: Dexie.js (IndexedDB) + Postgres (Railway)
 - **Audio**: Web Audio API (synthesized sounds)
 - **Build**: Vite
 
@@ -81,6 +81,22 @@ npm run build    # Build for production
 npm run preview  # Preview production build
 npm run check    # Type check
 ```
+
+## Railway Postgres + n8n
+
+To run the app against a Railway Postgres database (and make the data available to n8n):
+
+1. Create a Railway project and add a Postgres service.
+2. Add these environment variables to the Railway service running the app:
+   - `DATABASE_URL` = Railway's Postgres connection string
+   - `DATABASE_SSL=true` (recommended for Railway)
+   - `PUBLIC_STORAGE_MODE=postgres`
+3. Deploy the app. The API will auto-create `contracts` and `settings` tables on first request.
+
+n8n can connect directly to the same Railway Postgres instance (use the same `DATABASE_URL` details)
+and query the `contracts` and `settings` tables for automations.
+
+To keep the local IndexedDB mode for offline use, omit `PUBLIC_STORAGE_MODE` or set it to `local`.
 
 ## License
 
