@@ -1,4 +1,4 @@
-import { browser } from '$app/environment';
+import { browser, dev } from '$app/environment';
 import { env as publicEnv } from '$env/dynamic/public';
 
 // ===== Date Helpers =====
@@ -48,7 +48,7 @@ export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-const storageMode = publicEnv.PUBLIC_STORAGE_MODE ?? 'local';
+const storageMode = publicEnv.PUBLIC_STORAGE_MODE ?? (dev ? 'local' : 'postgres');
 const useRemoteStorage = storageMode === 'postgres';
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -479,3 +479,8 @@ export const db = {
     }
   }
 };
+
+
+
+
+

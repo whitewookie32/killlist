@@ -96,8 +96,11 @@ To run the app against a Railway Postgres database (and make the data available 
 n8n can connect directly to the same Railway Postgres instance (use the same `DATABASE_URL` details)
 and query the `contracts` and `settings` tables for automations.
 
-To keep the local IndexedDB mode for offline use, omit `PUBLIC_STORAGE_MODE` or set it to `local`.
+To keep the local IndexedDB mode for offline use in development, set `PUBLIC_STORAGE_MODE=local` or run in dev mode. In production builds, the app defaults to Postgres unless you explicitly set `PUBLIC_STORAGE_MODE=local`.
 
 ## License
 
 MIT
+
+
+
