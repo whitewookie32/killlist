@@ -58,6 +58,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
+  padding-top: env(safe-area-inset-top, 0);
 }
 
 /* Noise overlay for texture */
