@@ -110,7 +110,6 @@ declare module '$env/static/private' {
 	export const VSCODE_CODE_CACHE_PATH: string;
 	export const VSCODE_CRASH_REPORTER_PROCESS_TYPE: string;
 	export const VSCODE_CWD: string;
-	export const VSCODE_DOTNET_INSTALL_TOOL_ORIGINAL_HOME: string;
 	export const VSCODE_ESM_ENTRYPOINT: string;
 	export const VSCODE_HANDLES_UNCAUGHT_ERRORS: string;
 	export const VSCODE_IPC_HOOK: string;
@@ -230,7 +229,6 @@ declare module '$env/dynamic/private' {
 		VSCODE_CODE_CACHE_PATH: string;
 		VSCODE_CRASH_REPORTER_PROCESS_TYPE: string;
 		VSCODE_CWD: string;
-		VSCODE_DOTNET_INSTALL_TOOL_ORIGINAL_HOME: string;
 		VSCODE_ESM_ENTRYPOINT: string;
 		VSCODE_HANDLES_UNCAUGHT_ERRORS: string;
 		VSCODE_IPC_HOOK: string;

@@ -27,8 +27,10 @@
                     >Terminal Settings</span
                 >
                 <button
+                    type="button"
                     onclick={() => (isOpen = false)}
                     class="text-zinc-600 hover:text-white transition-colors p-1"
+                    aria-label="Close settings"
                 >
                     <svg
                         class="w-4 h-4"

@@ -265,6 +265,7 @@
   </div>
 
   <!-- Card - GPU Accelerated -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="relative bg-neutral-800 transition-[opacity] duration-200 cursor-grab active:cursor-grabbing gpu-accelerated
       {isExecutiveOrder
@@ -274,6 +275,8 @@
     style="transform: translate3d({offsetX}px, 0, 0); will-change: transform; {isDragging
       ? ''
       : 'transition: transform 0.3s ease-out;'}"
+    role="article"
+    aria-label={contract.title}
     ontouchstart={handleTouchStart}
     ontouchmove={handleTouchMove}
     ontouchend={handleTouchEnd}
@@ -296,6 +299,15 @@
         <div
           class="flex-1 min-w-0 relative cursor-pointer select-none"
           onclick={toggleDetails}
+          role="button"
+          tabindex="0"
+          aria-expanded={isExpanded}
+          onkeydown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              toggleDetails();
+            }
+          }}
         >
           <h3
             class="text-base font-medium transition-all {isExecutiveOrder
@@ -360,9 +372,11 @@
     </div>
 
     <!-- Grip Handle (Affordance) -->
-    <div
+    <button
+      type="button"
       class="absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center cursor-move text-neutral-600 hover:text-neutral-400 z-10"
       class:hidden={isCompleting}
+      aria-label="Drag to reorder"
       onpointerdown={(e) => {
         onDragStart?.();
       }}
@@ -372,7 +386,7 @@
       onclick={(e) => e.stopPropagation()}
     >
       <span class="text-neutral-600 text-lg font-light select-none">»</span>
-    </div>
+    </button>
 
     <!-- KILLED stamp overlay -->
     {#if showKilledStamp}
