@@ -72,6 +72,8 @@
   let showCreateForm = $state(false);
   let newContractTitle = $state("");
   let isHighTable = $state(false);
+  let newDueDate = $state("");
+  let newDueTime = $state("23:59");
   let expandedId: string | null = $state(null);
   let deleteConfirmId: string | null = $state(null);
   let editingId: string | null = $state(null);
@@ -183,6 +185,8 @@
       newContractTitle.trim(),
       isHighTable ? "highTable" : "normal",
       status,
+      newDueDate || undefined,
+      newDueDate ? (newDueTime || "23:59") : undefined,
     );
 
     // Visual/Audio feedback for Active contracts
@@ -201,6 +205,8 @@
     // Reset form
     newContractTitle = "";
     isHighTable = false;
+    newDueDate = "";
+    newDueTime = "23:59";
     showCreateForm = false;
   }
 
@@ -372,7 +378,11 @@
         <button
           type="button"
           class="w-10 h-10 rounded-full border border-kl-gold/40 flex items-center justify-center text-kl-gold hover:border-kl-gold hover:bg-kl-gold/10 transition-colors"
-          onclick={() => (showCreateForm = true)}
+          onclick={() => {
+            showCreateForm = true;
+            newDueDate = "";
+            newDueTime = "23:59";
+          }}
           title="Add Contract"
         >
           <svg
@@ -852,8 +862,8 @@
 
             <p class="text-xs text-neutral-500 mb-6">
               {$page.url.pathname === "/"
-                ? "Contract Accepted Immediately - Deadline: Tonight at 23:59"
-                : "Deadline: Tonight at 23:59 when accepted"}
+                ? "Contract Accepted Immediately - Deadline defaults to 23:59"
+                : "Deadline defaults to 23:59 when accepted"}
             </p>
 
             <div class="space-y-5">
@@ -873,6 +883,38 @@
                   class="w-full bg-neutral-800 border border-neutral-700 p-4 text-white placeholder:text-neutral-600 focus:border-neutral-500 focus:outline-none"
                   use:focusOnMount
                 />
+              </div>
+
+              <!-- Deadline Override -->
+              <div>
+                <label
+                  class="block text-xs text-neutral-500 mb-2 tracking-widest"
+                >
+                  DUE DATE (OPTIONAL)
+                </label>
+                <div class="flex items-center gap-3">
+                  <input
+                    type="date"
+                    bind:value={newDueDate}
+                    class="flex-1 bg-neutral-800 border border-neutral-700 p-3 text-white focus:border-neutral-500 focus:outline-none"
+                  />
+                  <input
+                    type="time"
+                    bind:value={newDueTime}
+                    class="w-32 bg-neutral-800 border border-neutral-700 p-3 text-white focus:border-neutral-500 focus:outline-none"
+                    disabled={!newDueDate}
+                  />
+                  <button
+                    type="button"
+                    class="text-[10px] uppercase tracking-widest border border-neutral-700 text-neutral-400 px-3 py-3 hover:text-kl-gold hover:border-kl-gold/60 transition-colors"
+                    onclick={() => {
+                      newDueDate = "";
+                      newDueTime = "23:59";
+                    }}
+                  >
+                    CLEAR
+                  </button>
+                </div>
               </div>
 
               <!-- EXECUTIVE ORDER Toggle -->

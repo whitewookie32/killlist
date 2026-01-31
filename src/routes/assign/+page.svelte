@@ -25,6 +25,19 @@
         }
     });
 
+    function parseDeadline(value: string): { date?: string; time?: string } {
+        if (!value) return {};
+        if (value.includes("T")) {
+            const [date, timeRaw] = value.split("T");
+            const time = timeRaw ? timeRaw.slice(0, 5) : undefined;
+            return { date, time };
+        }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+            return { date: value };
+        }
+        return {};
+    }
+
     function acceptMission() {
         // 1. Add to Store (Optimistic)
         // If priority comes in as boolean string or other format, normalize it
@@ -39,7 +52,14 @@
         // Let's stick to Registry to follow the "Do you accept?" flow in the main app,
         // BUT since they just accepted here, maybe we put it in Registry so they can slot it?
         // User requirement: "Animate task being added to Registry".
-        const newContract = addContract(target, priorityLevel, "registry");
+        const { date: targetDate, time: terminusTime } = parseDeadline(deadline);
+        const newContract = addContract(
+            target,
+            priorityLevel,
+            "registry",
+            targetDate,
+            terminusTime,
+        );
 
         // 2. Track Event
         trackContractHit(newContract.id, isNewUser);

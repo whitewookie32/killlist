@@ -200,22 +200,26 @@ export async function cleanHouse(): Promise<void> {
  * Add a new contract to the Registry (backlog) - Optimistic UI pattern
  * Contracts start in 'registry' status with no targetDate.
  * The 24h burn timer only starts when accepted.
- * Deadline is always 23:59 (end of day) - user doesn't choose.
+ * Deadline defaults to 23:59 (end of day) unless overridden.
  */
 /**
  * Create a new contract.
  * @param title - Contract title
  * @param priority - Priority level (normal or highTable)
  * @param status - Contract status ('registry' or 'active'). Defaults to 'registry'.
- *                 If 'active', targetDate is set to today and terminusTime to 23:59.
+ *                 If 'active', targetDate defaults to today and terminusTime to 23:59.
  */
 export function addContract(
   title: string,
   priority: 'normal' | 'highTable' = 'normal',
-  status: 'registry' | 'active' = 'registry'
+  status: 'registry' | 'active' = 'registry',
+  targetDate?: string,
+  terminusTime?: string
 ): Contract {
   const today = getClientTodayISODate();
   const acceptedAt = status === 'active' ? new Date().toISOString() : undefined;
+  const normalizedDate = targetDate && targetDate.trim() ? targetDate : undefined;
+  const normalizedTime = terminusTime && terminusTime.trim() ? terminusTime : undefined;
 
   const newContract: Contract = {
     id: generateId(),
@@ -225,13 +229,13 @@ export function addContract(
     createdAt: new Date().toISOString(),
     // If active, set deadline immediately
     ...(status === 'active' ? {
-      targetDate: today,
-      terminusTime: '23:59',
+      targetDate: normalizedDate ?? today,
+      terminusTime: normalizedTime ?? '23:59',
       acceptedAt
     } : {
-      // Registry contracts have no deadline until accepted
-      targetDate: undefined,
-      terminusTime: undefined
+      // Registry contracts may optionally include a deadline
+      targetDate: normalizedDate,
+      terminusTime: normalizedTime
     })
   };
 
