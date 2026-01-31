@@ -98,6 +98,54 @@ and query the `contracts` and `settings` tables for automations.
 
 To keep the local IndexedDB mode for offline use in development, set `PUBLIC_STORAGE_MODE=local` or run in dev mode. In production builds, the app defaults to Postgres unless you explicitly set `PUBLIC_STORAGE_MODE=local`.
 
+## API Endpoints
+
+### Contracts
+
+`GET /api/contracts`
+- Query params: `status` (optional), `targetDate` (optional, `YYYY-MM-DD`)
+- Response: Array of contracts
+
+`POST /api/contracts`
+- Body: `{ title, id?, targetDate?, terminusTime?, priority?, status?, createdAt?, killedAt?, acceptedAt?, order?, frozenUntil? }`
+- `title` required
+- Response: Created contract
+
+`DELETE /api/contracts`
+- Body: `{ ids: string[] }`
+- Response: `{ success: true }`
+
+`PATCH /api/contracts/:id`
+- Body: partial contract fields (any of: `title, targetDate, terminusTime, priority, status, createdAt, killedAt, acceptedAt, order, frozenUntil`)
+- Response: Updated contract
+
+`DELETE /api/contracts/:id`
+- Response: `{ success: true }`
+
+### Settings
+
+`GET /api/settings`
+- Response: `{ id: "settings", onboardingComplete, vaultCount }`
+
+`PATCH /api/settings`
+- Body: `{ onboardingComplete?, vaultCount? }`
+- Response: Updated settings
+
+### Secure Uplink
+
+`POST /api/uplink`
+- Body: `{ message: string, metadata: { appVersion?, platform?, deviceModel?, bodyCount? } }`
+- Sends email via Resend
+- Response: `{ success: true, id }`
+- Requires env vars: `RESEND_API_KEY`, `UPLINK_RECIPIENT_EMAIL`
+
+### Webhooks
+
+`POST /api/webhooks/burn`
+- Body: Any JSON payload (forwarded to n8n)
+- Response: `{ ok: true }` or `{ skipped: true, reason: "N8N_BURN_WEBHOOK_URL not set" }`
+- Requires env var: `N8N_BURN_WEBHOOK_URL`
+
 ## License
 
 MIT
