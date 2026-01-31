@@ -376,7 +376,7 @@
         <!-- Allow Modifications Toggle -->
         <button
           type="button"
-          class="hidden sm:flex items-center gap-2 text-[10px] uppercase tracking-widest border border-neutral-700 px-3 py-2 text-neutral-400 hover:text-kl-gold hover:border-kl-gold/50 transition-colors"
+          class="flex items-center gap-2 text-[10px] uppercase tracking-widest border border-neutral-700 px-3 py-2 text-neutral-400 hover:text-kl-gold hover:border-kl-gold/50 transition-colors"
           onclick={() => (allowRegistryModify = !allowRegistryModify)}
           aria-pressed={allowRegistryModify}
         >
