@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { addContract } from "$lib/stores/contracts";
+  import { getClientTodayISODate } from "$lib/db";
   import { playUpload, unlockAudio } from "$lib/audio";
   import { trackDeadDropUsed } from "$lib/analytics";
 
@@ -19,6 +20,8 @@
   let isScrambling = $state(false);
   let scrambledText = $state("");
   let flyingItem = $state<{ text: string; visible: boolean } | null>(null);
+  let dueDate = $state("");
+  let dueTime = $state("");
 
   // Executive Order State
   let isExecutiveOrder = $state(false);
@@ -128,14 +131,27 @@
     // We must check this BEFORE resetting the state variable
     const status = forceActive || isExecutiveOrder ? "active" : "registry";
 
+    const trimmedDueDate = dueDate.trim();
+    const trimmedDueTime = dueTime.trim();
+    let finalDueDate = trimmedDueDate || undefined;
+    let finalDueTime = trimmedDueTime || undefined;
+    if (!finalDueDate && finalDueTime) {
+      finalDueDate = getClientTodayISODate();
+    }
+    if (finalDueDate && !finalDueTime) {
+      finalDueTime = "23:59";
+    }
+
     // Reset state
     inputValue = "";
     scrambledText = "";
     isScrambling = false;
     isExecutiveOrder = false;
+    dueDate = "";
+    dueTime = "";
 
     // Add to store
-    addContract(title, priority, status);
+    addContract(title, priority, status, finalDueDate, finalDueTime);
     onAdd?.(title);
 
     // Track analytics
@@ -255,6 +271,33 @@
             d="M12 4v16m0-16l-4 4m4-4l4 4"
           />
         </svg>
+      </button>
+    </div>
+
+    <div class="mt-2 flex items-center gap-2 text-[10px] text-neutral-500">
+      <span class="tracking-widest">DUE</span>
+      <input
+        type="date"
+        bind:value={dueDate}
+        class="bg-neutral-900 border border-neutral-700 px-2 py-1 text-neutral-200 focus:outline-none focus:border-neutral-500"
+        onchange={() => {
+          if (dueDate && !dueTime) dueTime = "23:59";
+        }}
+      />
+      <input
+        type="time"
+        bind:value={dueTime}
+        class="bg-neutral-900 border border-neutral-700 px-2 py-1 text-neutral-200 focus:outline-none focus:border-neutral-500"
+      />
+      <button
+        type="button"
+        class="uppercase tracking-widest border border-neutral-700 text-neutral-400 px-2 py-1 hover:text-kl-gold hover:border-kl-gold/60 transition-colors"
+        onclick={() => {
+          dueDate = "";
+          dueTime = "";
+        }}
+      >
+        CLEAR
       </button>
     </div>
   </div>

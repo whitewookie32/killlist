@@ -24,7 +24,7 @@
     trackContractHitSent,
   } from "$lib/analytics";
   import { trainingStore } from "$lib/stores/training";
-  import type { Contract } from "$lib/db";
+  import { getClientTodayISODate, type Contract } from "$lib/db";
   import { dndzone, type DndEvent } from "svelte-dnd-action";
   import { flip } from "svelte/animate";
   import { downloadMissionICS } from "$lib/ics";
@@ -73,7 +73,7 @@
   let newContractTitle = $state("");
   let isHighTable = $state(false);
   let newDueDate = $state("");
-  let newDueTime = $state("23:59");
+  let newDueTime = $state("");
   let expandedId: string | null = $state(null);
   let deleteConfirmId: string | null = $state(null);
   let editingId: string | null = $state(null);
@@ -181,12 +181,24 @@
     const status = isActiveRoute ? "active" : "registry";
 
     // Create contract with appropriate status
+    const trimmedDueDate = newDueDate.trim();
+    const trimmedDueTime = newDueTime.trim();
+    let finalDueDate = trimmedDueDate || undefined;
+    let finalDueTime = trimmedDueTime || undefined;
+
+    if (!finalDueDate && finalDueTime) {
+      finalDueDate = getClientTodayISODate();
+    }
+    if (finalDueDate && !finalDueTime) {
+      finalDueTime = "23:59";
+    }
+
     addContract(
       newContractTitle.trim(),
       isHighTable ? "highTable" : "normal",
       status,
-      newDueDate || undefined,
-      newDueDate ? (newDueTime || "23:59") : undefined,
+      finalDueDate,
+      finalDueTime,
     );
 
     // Visual/Audio feedback for Active contracts
@@ -206,7 +218,7 @@
     newContractTitle = "";
     isHighTable = false;
     newDueDate = "";
-    newDueTime = "23:59";
+    newDueTime = "";
     showCreateForm = false;
   }
 
@@ -381,7 +393,7 @@
           onclick={() => {
             showCreateForm = true;
             newDueDate = "";
-            newDueTime = "23:59";
+            newDueTime = "";
           }}
           title="Add Contract"
         >
@@ -897,19 +909,21 @@
                     type="date"
                     bind:value={newDueDate}
                     class="flex-1 bg-neutral-800 border border-neutral-700 p-3 text-white focus:border-neutral-500 focus:outline-none"
+                    onchange={() => {
+                      if (newDueDate && !newDueTime) newDueTime = "23:59";
+                    }}
                   />
                   <input
                     type="time"
                     bind:value={newDueTime}
                     class="w-32 bg-neutral-800 border border-neutral-700 p-3 text-white focus:border-neutral-500 focus:outline-none"
-                    disabled={!newDueDate}
                   />
                   <button
                     type="button"
                     class="text-[10px] uppercase tracking-widest border border-neutral-700 text-neutral-400 px-3 py-3 hover:text-kl-gold hover:border-kl-gold/60 transition-colors"
                     onclick={() => {
                       newDueDate = "";
-                      newDueTime = "23:59";
+                      newDueTime = "";
                     }}
                   >
                     CLEAR
