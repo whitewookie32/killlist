@@ -172,7 +172,7 @@
 
 <!-- Dead Drop Input Container -->
 <div
-  class="fixed bottom-16 left-0 right-0 z-40 px-4 pb-2"
+  class="fixed bottom-16 left-0 right-0 z-40 px-4 pb-4"
   style="font-family: 'JetBrains Mono', monospace;"
 >
   <!-- Flying Item Animation -->
