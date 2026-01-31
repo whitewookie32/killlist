@@ -3,6 +3,7 @@ import { browser } from '$app/environment';
 import {
   db,
   type Contract,
+  type ContractStatus,
   type AppSettings,
   DEFAULT_SETTINGS,
   generateId,
@@ -60,7 +61,7 @@ export const todayActiveContracts = derived(
   [contracts, todayDate],
   ([$contracts, $today]) =>
     $contracts
-      .filter((c) => c.targetDate === $today && c.status === 'active' && (!c.frozenUntil || new Date(c.frozenUntil) <= new Date()))
+      .filter((c) => c.status === 'active' && (!c.frozenUntil || new Date(c.frozenUntil) <= new Date()))
       .sort((a, b) => {
         // 1. Sort by Priority (High Table first)
         if (a.priority === 'highTable' && b.priority !== 'highTable') return -1;
@@ -71,7 +72,11 @@ export const todayActiveContracts = derived(
           return a.order - b.order;
         }
 
-        // 3. Fallback: Sort by terminusTime if available
+        // 3. Sort by targetDate then terminusTime
+        const aDate = a.targetDate || $today;
+        const bDate = b.targetDate || $today;
+        if (aDate !== bDate) return aDate.localeCompare(bDate);
+
         const aTime = a.terminusTime || '23:59';
         const bTime = b.terminusTime || '23:59';
         return aTime.localeCompare(bTime);
@@ -82,6 +87,17 @@ export const todayActiveContracts = derived(
 export const killedContracts = derived(contracts, ($contracts) =>
   $contracts
     .filter((c) => c.status === 'killed')
+    .sort((a, b) => {
+      const aTime = a.killedAt || a.createdAt;
+      const bTime = b.killedAt || b.createdAt;
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    })
+);
+
+// Burned (overdue) contracts for burn list
+export const burnedContracts = derived(contracts, ($contracts) =>
+  $contracts
+    .filter((c) => c.status === 'burned')
     .sort((a, b) => {
       const aTime = a.killedAt || a.createdAt;
       const bTime = b.killedAt || b.createdAt;
@@ -146,6 +162,9 @@ export async function runBurnProtocolOnStart(): Promise<number> {
     // Open the Mission Report modal
     morningReportBurned.set(burned);
     morningReportOpen.set(true);
+
+    // Notify webhook (n8n integration)
+    postBurnedWebhook(burned, 'startup');
   }
 
   return burned.length;
@@ -231,19 +250,36 @@ export function addContract(
 
 /**
  * Accept a contract from the Registry - Optimistic UI pattern
- * Sets status to 'active', targetDate to today, and terminusTime to 23:59.
- * The deadline is always tonight at 23:59:59 - user doesn't choose.
+ * Sets status to 'active'. If a contract already has a deadline, it is preserved;
+ * otherwise defaults to today at 23:59.
  */
 export function acceptContractOptimistic(id: string): void {
   const today = getClientTodayISODate();
   const acceptedAt = new Date().toISOString();
-  const terminusTime = '23:59'; // Always end of day
+  let targetDate = today;
+  let terminusTime = '23:59';
+  let prevTargetDate: string | undefined;
+  let prevTerminusTime: string | undefined;
+  let prevStatus: ContractStatus | undefined;
 
   // INSTANT: Update store immediately
   contracts.update((list) =>
     list.map((c) =>
       c.id === id
-        ? { ...c, status: 'active' as const, targetDate: today, terminusTime, acceptedAt }
+        ? (() => {
+          prevStatus = c.status;
+          prevTargetDate = c.targetDate;
+          prevTerminusTime = c.terminusTime;
+          targetDate = c.targetDate ?? today;
+          terminusTime = c.terminusTime ?? '23:59';
+          return {
+            ...c,
+            status: 'active' as const,
+            targetDate,
+            terminusTime,
+            acceptedAt
+          };
+        })()
         : c
     )
   );
@@ -251,7 +287,7 @@ export function acceptContractOptimistic(id: string): void {
   // ASYNC: Persist to DB
   db.contracts.update(id, {
     status: 'active',
-    targetDate: today,
+    targetDate,
     terminusTime,
     acceptedAt
   }).catch((err) => {
@@ -260,7 +296,13 @@ export function acceptContractOptimistic(id: string): void {
     contracts.update((list) =>
       list.map((c) =>
         c.id === id
-          ? { ...c, status: 'registry' as const, targetDate: undefined, acceptedAt: undefined }
+          ? {
+            ...c,
+            status: (prevStatus ?? 'registry') as ContractStatus,
+            targetDate: prevTargetDate,
+            terminusTime: prevTerminusTime,
+            acceptedAt: undefined
+          }
           : c
       )
     );
@@ -352,6 +394,79 @@ export function updateContractTitle(id: string, newTitle: string): void {
   // Option 2: Async Persist
   db.contracts.update(id, { title: newTitle }).catch((err) => {
     console.error('Failed to update contract title:', err);
+  });
+}
+
+/**
+ * Update contract deadline (targetDate + terminusTime)
+ */
+export function updateContractDeadline(
+  id: string,
+  targetDate: string | undefined,
+  terminusTime: string | undefined
+): void {
+  const normalizedDate = targetDate && targetDate.trim() ? targetDate : undefined;
+  const normalizedTime = terminusTime && terminusTime.trim() ? terminusTime : undefined;
+
+  contracts.update((list) =>
+    list.map((c) =>
+      c.id === id
+        ? { ...c, targetDate: normalizedDate, terminusTime: normalizedTime }
+        : c
+    )
+  );
+
+  db.contracts.update(id, {
+    targetDate: normalizedDate,
+    terminusTime: normalizedTime
+  }).catch((err) => {
+    console.error('Failed to update contract deadline:', err);
+  });
+}
+
+/**
+ * Restore a burned contract to active status.
+ * If the previous deadline is in the past, move it to today at 23:59.
+ */
+export function restoreBurnedContract(id: string): void {
+  const today = getClientTodayISODate();
+  let nextTargetDate = today;
+  let nextTerminusTime = '23:59';
+  let prevStatus: ContractStatus | undefined;
+
+  contracts.update((list) =>
+    list.map((c) => {
+      if (c.id !== id) return c;
+      prevStatus = c.status;
+      const targetDate = c.targetDate ?? today;
+      const terminusTime = c.terminusTime ?? '23:59';
+      const adjustedTargetDate = targetDate < today ? today : targetDate;
+      nextTargetDate = adjustedTargetDate;
+      nextTerminusTime = terminusTime;
+      return {
+        ...c,
+        status: 'active' as const,
+        targetDate: adjustedTargetDate,
+        terminusTime,
+        acceptedAt: c.acceptedAt ?? new Date().toISOString()
+      };
+    })
+  );
+
+  db.contracts.update(id, {
+    status: 'active',
+    targetDate: nextTargetDate,
+    terminusTime: nextTerminusTime,
+    acceptedAt: new Date().toISOString()
+  }).catch((err) => {
+    console.error('Failed to restore burned contract:', err);
+    if (prevStatus) {
+      contracts.update((list) =>
+        list.map((c) =>
+          c.id === id ? { ...c, status: prevStatus } : c
+        )
+      );
+    }
   });
 }
 
@@ -493,6 +608,9 @@ export async function burnExpiredContracts(): Promise<Contract[]> {
     console.error('Failed to burn expired contracts:', err);
   }
 
+  // Notify webhook (n8n integration)
+  postBurnedWebhook(expiredContracts, 'realtime');
+
   return expiredContracts.map((c) => ({ ...c, status: 'burned' as const }));
 }
 
@@ -545,4 +663,23 @@ export function stopDeadlineMonitoring(): void {
 export function formatTerminusTime(time: string | undefined): string {
   if (!time) return '23:59';
   return time;
+}
+
+async function postBurnedWebhook(
+  burned: Contract[],
+  source: 'startup' | 'realtime'
+): Promise<void> {
+  if (!browser || burned.length === 0) return;
+  try {
+    await fetch('/api/webhooks/burn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source,
+        contracts: burned
+      })
+    });
+  } catch (err) {
+    console.warn('Burn webhook failed:', err);
+  }
 }

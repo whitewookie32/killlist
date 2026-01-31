@@ -1,6 +1,11 @@
 <script lang="ts">
   import { page } from "$app/stores";
-  import { registryCount, openCount, settings } from "$lib/stores/contracts";
+  import {
+    registryCount,
+    openCount,
+    burnedContracts,
+    settings,
+  } from "$lib/stores/contracts";
   import { trainingStore } from "$lib/stores/training";
   import { browser } from "$app/environment";
 
@@ -10,12 +15,13 @@
   type NavItem = {
     path: string;
     label: string;
-    icon: "registry" | "active" | "morgue";
+    icon: "registry" | "active" | "morgue" | "burn";
   };
 
   const navItems = $derived([
     { path: "/registry", label: "REGISTRY", icon: "registry" },
     { path: "/", label: "ACTIVE", icon: "active" },
+    { path: "/burn-list", label: "BURN", icon: "burn" },
     { path: "/morgue", label: "MORGUE", icon: "morgue" },
   ]);
 
@@ -96,6 +102,28 @@
                 fill-rule="evenodd"
               />
             </svg>
+          {:else if item.icon === "burn"}
+            <!-- Flame icon -->
+            <svg
+              class="w-6 h-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 3c1.5 3-1 4.5-1 7 0 1.5 1 2.5 2.5 2.5S16 11 16 9.5c0-1.5.5-3 2-4 1 2 2 3.5 2 6A8 8 0 114 11.5C4 8 6 6 8 4c0 2 1 3 2 3 1 0 2-1 2-4z"
+              />
+            </svg>
+            {#if $burnedContracts.length > 0}
+              <span
+                class="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 bg-kl-crimson/80 text-[9px] text-white flex items-center justify-center rounded-full"
+              >
+                {$burnedContracts.length}
+              </span>
+            {/if}
           {/if}
         </div>
 
