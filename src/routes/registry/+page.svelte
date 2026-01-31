@@ -14,6 +14,7 @@
     reorderContracts,
     settings,
     updateContractTitle,
+    updateContractDeadline,
   } from "$lib/stores/contracts";
   import { secureUplinkOpen } from "$lib/stores/ui";
   import { playLoad, unlockAudio } from "$lib/audio";
@@ -74,10 +75,17 @@
   let isHighTable = $state(false);
   let newDueDate = $state("");
   let newDueTime = $state("");
+  let allowRegistryModify = $state(false);
   let expandedId: string | null = $state(null);
   let deleteConfirmId: string | null = $state(null);
   let editingId: string | null = $state(null);
   let editValue = $state("");
+
+  $effect(() => {
+    if (!allowRegistryModify) {
+      editingId = null;
+    }
+  });
 
   function focusOnMount(node: HTMLElement) {
     node.focus();
@@ -324,6 +332,7 @@
   }
 
   function toggleEdit(contract: Contract) {
+    if (!allowRegistryModify) return;
     if (editingId === contract.id) {
       // Save
       handleUpdateTitle(contract.id);
@@ -364,6 +373,18 @@
       </h1>
 
       <div class="flex items-center gap-4">
+        <!-- Allow Modifications Toggle -->
+        <button
+          type="button"
+          class="hidden sm:flex items-center gap-2 text-[10px] uppercase tracking-widest border border-neutral-700 px-3 py-2 text-neutral-400 hover:text-kl-gold hover:border-kl-gold/50 transition-colors"
+          onclick={() => (allowRegistryModify = !allowRegistryModify)}
+          aria-pressed={allowRegistryModify}
+        >
+          <span>MODS</span>
+          <span class={allowRegistryModify ? "text-kl-gold" : "text-neutral-500"}>
+            {allowRegistryModify ? "ON" : "OFF"}
+          </span>
+        </button>
         <!-- HQ Feedback Trigger (Envelope) -->
         <button
           type="button"
@@ -678,6 +699,56 @@
                         {/if}
                       </div>
 
+                      <!-- Deadline Controls -->
+                      <div class="flex items-center justify-between">
+                        {#if allowRegistryModify}
+                          <div class="flex items-center gap-2">
+                            <span
+                              class="text-[10px] text-neutral-500 tracking-widest"
+                              >DUE</span
+                            >
+                            <input
+                              type="date"
+                              class="bg-neutral-900 border border-neutral-700 text-[10px] text-neutral-200 px-2 py-1 focus:outline-none focus:border-neutral-500"
+                              value={contract.targetDate || ""}
+                              onclick={(e) => e.stopPropagation()}
+                              onchange={(e) => {
+                                const nextDate = (e.currentTarget as HTMLInputElement).value;
+                                const nextTime =
+                                  contract.terminusTime || "23:59";
+                                updateContractDeadline(
+                                  contract.id,
+                                  nextDate || undefined,
+                                  nextDate ? nextTime : undefined,
+                                );
+                              }}
+                            />
+                            <input
+                              type="time"
+                              class="bg-neutral-900 border border-neutral-700 text-[10px] text-neutral-200 px-2 py-1 focus:outline-none focus:border-neutral-500"
+                              value={contract.terminusTime || ""}
+                              onclick={(e) => e.stopPropagation()}
+                              onchange={(e) => {
+                                const nextTime = (e.currentTarget as HTMLInputElement).value;
+                                const nextDate =
+                                  contract.targetDate ||
+                                  getClientTodayISODate();
+                                updateContractDeadline(
+                                  contract.id,
+                                  nextTime ? nextDate : undefined,
+                                  nextTime || undefined,
+                                );
+                              }}
+                            />
+                          </div>
+                        {/if}
+                        <span class="text-[10px] text-neutral-600 tracking-widest">
+                          {contract.targetDate
+                            ? `CURRENT: ${contract.targetDate} ${contract.terminusTime || "23:59"}`
+                            : "CURRENT: UNSET"}
+                        </span>
+                      </div>
+
                       <!-- Action Bar -->
                       <div class="flex items-center justify-between">
                         <!-- Secondary Actions (Icons) -->
@@ -733,29 +804,31 @@
                           </button>
 
                           <!-- Edit (Amend Intel) -->
-                          <button
-                            type="button"
-                            class="w-10 h-10 flex items-center justify-center border border-neutral-700 text-neutral-500 hover:text-kl-gold hover:border-kl-gold/50 hover:bg-kl-gold/5 transition-colors"
-                            title="Amend Intel"
-                            onclick={(e) => {
-                              e.stopPropagation();
-                              toggleEdit(contract);
-                            }}
-                          >
-                            <svg
-                              class="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                          {#if allowRegistryModify}
+                            <button
+                              type="button"
+                              class="w-10 h-10 flex items-center justify-center border border-neutral-700 text-neutral-500 hover:text-kl-gold hover:border-kl-gold/50 hover:bg-kl-gold/5 transition-colors"
+                              title="Amend Intel"
+                              onclick={(e) => {
+                                e.stopPropagation();
+                                toggleEdit(contract);
+                              }}
                             >
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="1.5"
-                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                              />
-                            </svg>
-                          </button>
+                              <svg
+                                class="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="1.5"
+                                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                />
+                              </svg>
+                            </button>
+                          {/if}
 
                           <!-- Delete -->
                           <button

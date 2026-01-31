@@ -227,7 +227,7 @@
       <!-- Executive Order Bolt Toggle -->
       <button
         type="button"
-        class="absolute right-12 top-1/2 -translate-y-1/2 p-2 transition-colors duration-300"
+        class="absolute right-10 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center transition-colors duration-300"
         onclick={toggleExecutiveOrder}
         disabled={isScrambling}
         aria-label="Toggle executive order"

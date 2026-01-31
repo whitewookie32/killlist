@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte"; // Add onMount
   import { slide } from "svelte/transition";
-  import type { Contract } from "$lib/db";
+  import { getClientTodayISODate, type Contract } from "$lib/db";
   import {
     playExecuteSound,
     unlockAudio,
@@ -97,6 +97,25 @@
     } else {
       return "Accepted just now";
     }
+  }
+
+  function formatDeadlineLabel(): string {
+    const time = contract.terminusTime || "23:59";
+    const date = contract.targetDate;
+    if (!date) {
+      return `TODAY ${time}`;
+    }
+    const today = getClientTodayISODate();
+    const [year, month, day] = date.split("-").map(Number);
+    const safeDate = new Date(year, month - 1, day);
+    const dateLabel =
+      date === today
+        ? "TODAY"
+        : safeDate.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          });
+    return `${dateLabel} ${time}`;
   }
 
   // Long Press State
@@ -354,7 +373,7 @@
           class="text-xs text-neutral-500"
           style="font-family: 'JetBrains Mono', monospace;"
         >
-          DEADLINE: 23:59
+          DEADLINE: {formatDeadlineLabel()}
         </p>
 
         <!-- Abort button -->
